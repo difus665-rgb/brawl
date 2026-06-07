@@ -22,9 +22,9 @@ from database.DataBase import DataBase
 import ping3
 from collections import OrderedDict
 
-bot = telebot.TeleBot("Токен сюды")
+bot = telebot.TeleBot("8935865312:AAG_jRvtRy8uAWIfdc7k6xMJ7FNkGkNtriI")
 
-admins = [7014105936] # 7014 - не трогайте а то бот вылетит
+admins = [7294783514] # 7014 - не трогайте а то бот вылетит
 tehs = []
 managers = []
 creator1 = []
