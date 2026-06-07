@@ -1,0 +1,754 @@
+{
+    "0": {
+        "ID": [
+            1,
+            0,
+            0
+        ],
+        "Multiplier": [
+            150,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 14,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            13937,
+            90882,
+            99578
+        ],
+        "ShopDisplay": 1,
+        "OldCost": 18,
+        "OfferTitle": "ПОДАРОК!",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "1": {
+        "ID": [
+            5,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            27,
+            0,
+            0
+        ],
+        "SkinID": [
+            259,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 1000,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 1,
+        "OldCost": 0,
+        "OfferTitle": "УЛУЧШЕНИЕ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "2": {
+        "ID": [
+            8,
+            0,
+            0
+        ],
+        "Multiplier": [
+            317,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            32,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 634,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 1,
+        "OldCost": 0,
+        "OfferTitle": "ЕЖЕДНЕВНАЯ АКЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "3": {
+        "ID": [
+            8,
+            0,
+            0
+        ],
+        "Multiplier": [
+            47,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            31,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 94,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 1,
+        "OldCost": 0,
+        "OfferTitle": "ЕЖЕДНЕВНАЯ АКЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "4": {
+        "ID": [
+            8,
+            0,
+            0
+        ],
+        "Multiplier": [
+            429,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            26,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 858,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 1,
+        "OldCost": 0,
+        "OfferTitle": "ЕЖЕДНЕВНАЯ АКЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "5": {
+        "ID": [
+            8,
+            0,
+            0
+        ],
+        "Multiplier": [
+            447,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            27,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 894,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 1,
+        "OldCost": 0,
+        "OfferTitle": "ЕЖЕДНЕВНАЯ АКЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "6": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            28,
+            0,
+            0
+        ],
+        "ShopType": 0,
+        "Cost": 79,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 79,
+        "OfferTitle": "ЕЖЕДНЕВНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "7": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            91,
+            0,
+            0
+        ],
+        "ShopType": 0,
+        "Cost": 149,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 149,
+        "OfferTitle": "ЕЖЕДНЕВНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "8": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            163,
+            0,
+            0
+        ],
+        "ShopType": 0,
+        "Cost": 149,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 149,
+        "OfferTitle": "ЕЖЕДНЕВНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "9": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            178,
+            0,
+            0
+        ],
+        "ShopType": 0,
+        "Cost": 19,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 29,
+        "OfferTitle": "ЕЖЕДНЕВНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "10": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            186,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 2500,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 2500,
+        "OfferTitle": "ЕЖЕДНЕВНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "11": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            30,
+            0,
+            0
+        ],
+        "ShopType": 0,
+        "Cost": 149,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 149,
+        "OfferTitle": "ЕЖЕДНЕВНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "12": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            167,
+            0,
+            0
+        ],
+        "ShopType": 3,
+        "Cost": 500,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "ЗВЁЗДНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "13": {
+        "ID": [
+            4,
+            0,
+            0
+        ],
+        "Multiplier": [
+            0,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            100,
+            0,
+            0
+        ],
+        "ShopType": 3,
+        "Cost": 10000,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "ЗВЁЗДНЫЙ СКИН",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "14": {
+        "ID": [
+            10,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            12172,
+            12172,
+            5347,
+            90882,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "15": {
+        "ID": [
+            10,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            5347,
+            90882,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "16": {
+        "ID": [
+            10,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            12172,
+            5347,
+            90882,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "17": {
+        "ID": [
+            10,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            12172,
+            5347,
+            90882,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "18": {
+        "ID": [
+            17,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            12172,
+            12172,
+            5347,
+            5347,
+            90882,
+            90882,
+            99578,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "19": {
+        "ID": [
+            17,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            12172,
+            12172,
+            96853,
+            96853,
+            5347,
+            5347,
+            90882,
+            90882,
+            99578,
+            99578,
+            99578,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    },
+    "20": {
+        "ID": [
+            17,
+            0,
+            0
+        ],
+        "Multiplier": [
+            1,
+            0,
+            0
+        ],
+        "BrawlerID": [
+            0,
+            0,
+            0
+        ],
+        "SkinID": [
+            0,
+            0,
+            0
+        ],
+        "ShopType": 1,
+        "Cost": 0,
+        "Timer": 86400,
+        "OfferView": 0,
+        "WhoBuyed": [
+            12172,
+            12172,
+            12172,
+            12172,
+            96853,
+            96853,
+            5347,
+            5347,
+            90882,
+            90882,
+            99578,
+            99578
+        ],
+        "ShopDisplay": 0,
+        "OldCost": 0,
+        "OfferTitle": "КОМПЕНСАЦИЯ",
+        "OfferBGR": "0",
+        "ETType": 0,
+        "ETMultiplier": 0
+    }
+}

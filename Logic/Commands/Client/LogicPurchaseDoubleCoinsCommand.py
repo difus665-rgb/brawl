@@ -1,0 +1,26 @@
+from database.DataBase import DataBase
+from Logic.Shop import Shop
+from Utils.Reader import BSMessageReader
+
+class LogicPurchaseDoubleCoinsCommand(BSMessageReader):
+    def __init__(self, client, player, initial_bytes):
+        super().__init__(initial_bytes)
+        self.player = player
+        self.client = client
+
+    def decode(self):
+        pass
+
+
+    def process(self):
+        cost = Shop.token_doubler['Cost']
+        value = Shop.token_doubler['Amount']
+
+        newGems = self.player.gems - cost
+        self.player.gems = newGems
+        DataBase.replaceValue(self, 'gems', newGems)
+
+        newTokens = self.player.tokensdoubler + value
+        self.player.tokensdoubler = newTokens
+        DataBase.replaceValue(self, 'Tokens_Doubler', newTokens)
+

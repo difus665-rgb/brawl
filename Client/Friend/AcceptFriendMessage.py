@@ -1,0 +1,57 @@
+from Utils.Reader import BSMessageReader
+import json
+import mysql.connector
+from mysql.connector import Error
+from Server.Friend.FriendListMessage import FriendListMessage
+from database.DataBase import DataBase
+
+class AcceptFriendMessage(BSMessageReader):
+    def __init__(self, client, player, initial_bytes):
+        super().__init__(initial_bytes)
+        self.player = player
+        self.client = client
+
+    def decode(self):
+        self.a = self.read_int()
+        self.b = self.read_int()
+
+    def process(self):
+        conn = DataBase.get_connection()
+        if not conn:
+            return
+
+        try:
+            with conn.cursor() as cursor:
+                # Update current player's friends
+                cursor.execute('SELECT friends FROM plrs WHERE lowID=%s', (self.player.low_id,))
+                user = cursor.fetchone()
+                if user and user[0]:
+                    friends = json.loads(user[0])
+                    for item in friends:
+                        if item['id'] == self.b:
+                            item['state'] = 4
+                            break
+                    friends_json = json.dumps(friends)
+                    cursor.execute('UPDATE plrs SET friends=%s WHERE lowID=%s', 
+                                 (friends_json, self.player.low_id))
+
+                cursor.execute('SELECT friends FROM plrs WHERE lowID=%s', (self.b,))
+                target_user = cursor.fetchone()
+                if target_user and target_user[0]:
+                    target_friends = json.loads(target_user[0])
+                    for item in target_friends:
+                        if item['id'] == self.player.low_id:
+                            item['state'] = 4
+                            break
+                    target_friends_json = json.dumps(target_friends)
+                    cursor.execute('UPDATE plrs SET friends=%s WHERE lowID=%s', 
+                                 (target_friends_json, self.b))
+
+                conn.commit()
+                FriendListMessage(self.client, self.player).send()
+
+        except Error as e:
+            print(f"[ERROR] MySQL error in AcceptFriendMessage: {e}")
+        finally:
+            if conn:
+                conn.close()
