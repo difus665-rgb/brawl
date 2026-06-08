@@ -1,24 +1,26 @@
+import sys
+from unittest.mock import MagicMock
+
+# 1. СНАЧАЛА нейтрализуем библиотеки, чтобы они не крашили систему
+mock = MagicMock()
+sys.modules['telebot'] = mock
+sys.modules['telebot.apihelper'] = mock
+sys.modules['mysql'] = mock
+sys.modules['mysql.connector'] = mock
+
 from multiprocessing import Process
 import subprocess
 
-def run_script(script_name):
-    try:
-        # Используем python3 для запуска
-        subprocess.run(['python3', script_name])
-    except Exception as e:
-        print(f"Ошибка при запуске {script_name}: {e}")
+def run_core():
+    # Запускаем только core.py
+    subprocess.run(['python3', 'core.py'])
 
 if __name__ == "__main__":
-    # ВНИМАНИЕ: МЫ ОСТАВИЛИ ТОЛЬКО CORE.PY
-    # anticheat.py и botuser.py удалены из списка, чтобы они не крашили сервер
-    files = ['core.py']
+    print("[СИСТЕМА] Запуск сервера в безопасном режиме...")
     
-    processes = []
-    for file in files:
-        process = Process(target=run_script, args=(file,))
-        processes.append(process)
-        process.start()
-    
-    # Ожидаем завершения процесса сервера
-    for process in processes:
-        process.join()
+    # 2. ЗАПУСКАЕМ ТОЛЬКО CORE.PY. 
+    # Никакого anticheat.py, никакого botuser.py.
+    # Они больше не существуют для системы.
+    p = Process(target=run_core)
+    p.start()
+    p.join()
