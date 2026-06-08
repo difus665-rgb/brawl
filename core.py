@@ -1,4 +1,14 @@
-from multiprocessing import Process
+import sys
+from unittest.mock import MagicMock
+
+# --- ГЛОБАЛЬНАЯ НЕЙТРАЛИЗАЦИЯ ---
+# Создаем фейковые объекты, которые ничего не делают
+mock = MagicMock()
+sys.modules['telebot'] = mock
+sys.modules['telebot.apihelper'] = mock
+sys.modules['mysql'] = mock
+sys.modules['mysql.connector'] = mock
+# ---------------------------------from multiprocessing import Process
 import subprocess
 
 def run_script(script_name):
