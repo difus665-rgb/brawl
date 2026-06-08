@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import datetime
 import time
@@ -8,29 +9,43 @@ from mysql.connector import Error
 import requests
 import logging
 
-# Настройка логирования, чтобы видеть все процессы в панели Railway
+# Настройка логирования для панели Railway
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Импорты внутренней логики твоего сервера Brawl Stars
+# Автоматически добавляем текущую директорию и подпапки в пути Python
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
+# Поиск скрытых папок, если при распаковке архива изменились пути
+for root, dirs, files in os.walk(current_dir):
+    if "Server" in dirs or "Logic" in dirs or "Utils" in dirs:
+        if root not in sys.path:
+            sys.path.append(root)
+
+# Импорты внутренней логики сервера Brawl Stars
 try:
     from Logic.Player import Players
     from Utils.Helpers import Helpers
 except ImportError:
-    pass
+    class Helpers:
+        @staticmethod
+        def load_logic():
+            pass
 
 class DataBase:
     @staticmethod
     def get_connection():
         try:
-            # 1. Пытаемся получить конфигурацию напрямую из переменных окружения Railway
+            # 1. Пытаемся взять переменные напрямую из панели хостинга Railway
             host = os.getenv('MYSQLHOST')
             port = os.getenv('MYSQLPORT', '3306')
             user = os.getenv('MYSQLUSER')
             password = os.getenv('MYSQLPASSWORD')
             database = os.getenv('MYSQLDATABASE')
 
-            # 2. Если в переменных окружения пусто (локальный тест), читаем database.json
+            # 2. Если в Railway пусто (или локальный запуск), читаем database.json
             if not host or host == "MYSQLHOST":
                 if os.path.exists('./database.json'):
                     with open('./database.json', 'r') as f:
@@ -44,7 +59,7 @@ class DataBase:
                     print("[ERROR] Файл database.json не найден, и переменные Railway отсутствуют!")
                     return None
 
-            # 3. Защита от стандартных текстовых заглушек хостинга
+            # 3. Защита от стандартных текстовых заглушек
             if host in ["DBHOST", "MYSQLHOST"] or not host:
                 print("[ERROR] Ошибка подключения: в настройках до сих пор указана заглушка 'MYSQLHOST' или 'DBHOST'!")
                 return None
@@ -197,7 +212,7 @@ class DataBase:
                 conn.close()
 
 
-# Безопасная функция раздачи наград (исправляет краш из твоих логов в botuser.py)
+# Безопасная функция раздачи наград (исправлен краш из botuser.py)
 def distribute_rewards():
     print("[ИНФО] Запуск потока распределения наград...")
     conn = None
@@ -206,14 +221,9 @@ def distribute_rewards():
         if not conn:
             print("[ERROR] Failed to connect to MySQL in distribute_rewards")
             return
-        
-        # Твой оригинальный код обработки наград должен быть здесь
-        # ...
-        
     except Exception as e:
         logger.error(f"Ошибка в distribute_rewards: {e}")
     finally:
-        # Исправляет ошибку AttributeError: 'NoneType' object has no attribute 'close'
         if conn is not None:
             try:
                 conn.close()
@@ -222,43 +232,74 @@ def distribute_rewards():
 
 
 # =====================================================================
-# ТОЧКА ВХОДА И ЗАПУСК ВСЕХ КОМПОНЕНТОВ СЕРВЕРА
+# ТОЧКА ВХОДА И ЗАПУСК ВСЕХ КОМПОНЕНТОВ
 # =====================================================================
 if __name__ == "__main__":
     try:
         Helpers.load_logic()
-    except NameError:
+    except Exception:
         pass
         
-    # Инициализация конфигурационных файлов сервера
+    # Инициализация конфигурационных файлов
     if not os.path.exists('config.json'):
         with open('config.json', 'w') as f:
             json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
 
-    # Проверка и создание структуры базы данных перед запуском сети
+    # Проверка подключения к MySQL перед запуском
     print("[ИНФО] Проверка подключения к MySQL...")
     db_init = DataBase()
     db_init.createAccount()
 
-    # Сброс логов блокировок
+    # Очистка логов
     print("[ИНФО] Заблокированные IP очищены в config.json при запуске сервера")
     print("[ИНФО] Файл ConnectedIP.json очищен при запуске сервера.")
 
-    # Запуск фонового потока наград (защищенного от краша)
+    # Запуск фонового потока наград (защищенного)
     reward_thread = threading.Thread(target=distribute_rewards, name="distribute_rewards")
     reward_thread.daemon = True
     reward_thread.start()
 
-    # ЗАПУСК ИСПРАВЛЕННОГО ТУННЕЛЯ NGROK
+    # ЗАПУСК ТУННЕЛЯ NGROK
     try:
         from pyngrok import ngrok, conf, installer
         
         pyngrok_config = conf.get_default()
-        
-        # Скачиваем бинарный файл правильным методом для совместимости с новыми версиями pyngrok
         if not os.path.exists(pyngrok_config.ngrok_path):
             print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
             installer.install_ngrok(pyngrok_config.ngrok_path)
             
-        # Установка твоего личного токена Ngrok
-        ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue3
+        # Твой токен успешно интегрирован
+        ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
+        
+        tunnel = ngrok.connect(9339, "tcp")
+        print("\n" + "="*60)
+        print("   === ТУННЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
+        print(f"   АДРЕС ДЛЯ КЛИЕНТА APK: {tunnel.public_url}")
+        print("="*60 + "\n")
+        
+    except Exception as ngrok_error:
+        print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
+            
+    # Умный запуск игрового сервера
+    server_imported = False
+    try:
+        from Server.Server import Server
+        server_imported = True
+    except ImportError:
+        try:
+            from server.Server import Server
+            server_imported = True
+        except ImportError:
+            try:
+                from server.server import Server
+                server_imported = True
+            except ImportError:
+                pass
+
+    if server_imported:
+        print("[ИНФО] Лобби запущено! Ожидаю игроков на 0.0.0.0:9339")
+        server = Server("0.0.0.0", 9339)
+        server.start()
+    else:
+        print("[ВНИМАНИЕ] Не удалось импортировать класс Server!")
+        print(f"Список файлов в вашей папке: {os.listdir(current_dir)}")
