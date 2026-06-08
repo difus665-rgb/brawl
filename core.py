@@ -13,6 +13,7 @@ from Utils.Helpers import Helpers
 from shared import connected_ips
 import mysql.connector
 from mysql.connector import Error
+from pyngrok import ngrok
 
 connection_timestamps = defaultdict(list)
 connection_lock = Lock()
@@ -261,8 +262,8 @@ class Server:
     def monitor_load(self):
         while True:
             time.sleep(3600)
-            log_info(f"Мониторинг нагрузки: {Server.ThreadCount} активных клиентов, "
-                     f"принято {self.total_received_bytes // 1024} КБ, отправлено {self.total_sent_bytes // 1024} КБ")
+            log_info(f"Мониторинг нагрузки: {Server.ThreadCount} active clients, "
+                     f"received {self.total_received_bytes // 1024} KB, sent {self.total_sent_bytes // 1024} KB")
 
     def start(self):
         while True:
@@ -388,7 +389,7 @@ class ClientThread(Thread):
                         break
 
         except (ConnectionResetError, BrokenPipeError):
-            pass  # Клиент отвалился — нормально
+            pass  
         except Exception as e:
             log_info(f"[ERROR] Ошибка клиента {client_ip}: {e}")
         finally:
@@ -404,5 +405,17 @@ if __name__ == "__main__":
         with open('config.json', 'w') as f:
             json.dump({"block": []}, f, indent=4)
             
+    # ЗАПУСК ТУННЕЛЯ NGROK ПЕРЕД СТАРТОМ СОКЕТОВ
+    try:
+        # ВСТАВЬ СВОЙ ТОКЕН В КАВЫЧКИ НИЖЕ (вместо ТВОЙ_ТОКЕН)
+        ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
+        tunnel = ngrok.connect(9339, "tcp")
+        print("\n" + "="*50)
+        print("=== ТУННЕЛЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
+        print(f"АДРЕС ДЛЯ КЛИЕНТА APK: {tunnel.public_url}")
+        print("="*50 + "\n")
+    except Exception as ngrok_error:
+        print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
+            
     server = Server("0.0.0.0", 9339)
-    server.start()
+    server.start()   
