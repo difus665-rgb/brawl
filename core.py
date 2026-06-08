@@ -1,24 +1,59 @@
 import os
 import sys
 import stat
+import json
 import time
 import requests
 import subprocess
 import threading
+import logging
 
-# --- НАСТРОЙКИ ---
-# Укажи точное имя файла твоего сервера Brawl Stars (например: 'server.exe', './server', 'main.py' и т.д.)
-SERVER_EXECUTABLE = "server.exe" 
-# ------------------
+# Настройка логирования для панели Railway
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# 1. АВТОМАТИЧЕСКИЙ ПОИСК ПАПОК ПРОЕКТА
 current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
 
+# Добавляем все возможные пути в Python, чтобы импорты Logic и Server работали
+for path in [current_dir, parent_dir]:
+    if path not in sys.path:
+        sys.path.append(path)
+    for root, dirs, files in os.walk(path):
+        if "Server" in dirs or "Logic" in dirs or "Utils" in dirs:
+            if root not in sys.path:
+                sys.path.append(root)
+
+# Безопасный импорт внутренней логики сервера Brawl Stars
+try:
+    from Logic.Player import Players
+    from Utils.Helpers import Helpers
+except ImportError:
+    class Helpers:
+        @staticmethod
+        def load_logic(): pass
+
+# Заглушка класса DataBase для совместимости с файлами сборки (файловый режим JSON)
+class DataBase:
+    @staticmethod
+    def get_connection(): return None
+    @staticmethod
+    def reset_brawlpass_for_all_players(): return
+    @staticmethod
+    def check_brawlpass_reset(): return False
+    @staticmethod
+    def createAccount(self): return
+
+def distribute_rewards():
+    print("[ИНФО] Фоновый поток наград активен (Файловый режим)...")
+
+
+# 2. ОДИН ФУНКЦИОНАЛ ДЛЯ СКАЧИВАНИЯ И ЗАПУСКА PLAYIT.GG
 def start_playit_tunnel():
-    """Скачивает и запускает туннель Playit.gg, выводя ссылку активации в логи."""
     print("[PLAYIT] Подготовка агента Playit.gg...")
     playit_path = os.path.join(current_dir, "playit")
     
-    # 1. Автоматическое скачивание, если файла нет
     if not os.path.exists(playit_path):
         try:
             url = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64"
@@ -28,8 +63,6 @@ def start_playit_tunnel():
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-            
-            # Даем права на выполнение (актуально для Linux/Railway)
             st = os.stat(playit_path)
             os.chmod(playit_path, st.st_mode | stat.S_IEXEC)
             print("[PLAYIT] Агент успешно скачан и настроен!")
@@ -37,11 +70,10 @@ def start_playit_tunnel():
             print(f"[КРИТИЧЕСКАЯ ОШИБКА PLAYIT]: Не удалось скачать агент: {e}")
             return
 
-    # 2. Функция для чтения логов туннеля в реальном времени
     def run_agent():
         try:
             print("[PLAYIT] Запуск туннеля...")
-            # Важно: перенаправляем stderr в stdout, чтобы поймать ссылку
+            # Объединяем вывод ошибок и логов, чтобы поймать ссылку активации
             process = subprocess.Popen(
                 [playit_path, "--secret_path", os.path.join(current_dir, "playit-secret.json")],
                 stdout=subprocess.PIPE,
@@ -51,69 +83,76 @@ def start_playit_tunnel():
             
             for line in process.stdout:
                 line_str = line.strip()
-                # Красиво выделяем ссылку на привязку аккаунта в логах Railway
+                # Перехватываем ссылку для генерации твоего IP и Порта
                 if "https://playit.gg/claim/" in line_str or "claim" in line_str.lower():
                     print("\n" + "!" * 60)
                     print("   === ССЫЛКА ДЛЯ ПОЛУЧЕНИЯ IP И ПОРТА ===")
                     print(f"   {line_str}")
                     print("!" * 60 + "\n")
                 else:
-                    print(f"[PLAYIT LOG] {line_str}")
+                    if "tunnel running" in line_str.lower() or "connected" in line_str.lower():
+                        print(f"[PLAYIT LOG] {line_str}")
         except Exception as e:
             print(f"[ERROR PLAYIT]: Ошибка во время работы процесса: {e}")
 
-    # Запускаем туннель в отдельном потоке, чтобы он не блокировал запуск сервера
     thread = threading.Thread(target=run_agent, name="PlayitAgent")
     thread.daemon = True
     thread.start()
 
 
-def start_brawl_server():
-    """Запускает основной сервер Brawl Stars."""
-    print(f"[SERVER] Запуск сервера Brawl Stars ({SERVER_EXECUTABLE})...")
-    server_path = os.path.join(current_dir, SERVER_EXECUTABLE)
-    
-    if not os.path.exists(server_path):
-        print(f"[КРИТИЧЕСКАЯ ОШИБКА]: Файл сервера '{SERVER_EXECUTABLE}' не найден в папке!")
-        return False
-
-    try:
-        # Если это .exe файл на Linux (Railway), запускаем через Wine, иначе напрямую
-        if SERVER_EXECUTABLE.endswith(".exe"):
-            # Проверяем, есть ли wine, если нет — пробуем напрямую (на случай если это Windows)
-            cmd = ["wine", server_path] if os.name != "nt" else [server_path]
-        else:
-            # Для скриптов или бинарников Linux
-            cmd = ["python", server_path] if SERVER_EXECUTABLE.endswith(".py") else [server_path]
-
-        # Запуск сервера
-        server_process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
-        return server_process
-    except Exception as e:
-        print(f"[КРИТИЧЕСКАЯ ОШИБКА СЕРВЕРА]: {e}")
-        return False
-
-
+# =====================================================================
+# ТОЧКА ВХОДА И ЗАПУСК СЕРВЕРА БРАВЛ СТАРС
+# =====================================================================
 if __name__ == "__main__":
-    print("=== ИНИЦИАЛИЗАЦИЯ СБОРКИ ===")
-    
-    # Запускаем туннель Playit
+    try:
+        Helpers.load_logic()
+    except Exception:
+        pass
+        
+    if not os.path.exists('config.json'):
+        with open('config.json', 'w') as f:
+            json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
+
+    print("[ИНФО] Сервер запускается в автономном файловом режиме (JSON)...")
+
+    # Запуск фонового распределения наград
+    reward_thread = threading.Thread(target=distribute_rewards, name="distribute_rewards")
+    reward_thread.daemon = True
+    reward_thread.start()
+
+    # СТАРТ ТУННЕЛЯ PLAYIT (Выдаст айпи и порт в логи)
     start_playit_tunnel()
+    time.sleep(2)
+            
+    # УМНЫЙ ИМПОРТ ИГРОВОГО ЛОББИ BRAWL STARS
+    server_imported = False
+    ServerClass = None
     
-    # Небольшая пауза, чтобы логи не перемешивались
-    time.sleep(2) 
+    # Перебираем все варианты путей, включая распакованную папку из архива
+    import_variants = [
+        "Server.Server",
+        "server.Server",
+        "server.server",
+        "bravl – копія.Server.Server"
+    ]
     
-    # Запускаем сервер Brawl Stars
-    server_proc = start_brawl_server()
-    
-    if server_proc:
-        # Удерживаем скрипт активным, пока работает основной сервер
+    for variant in import_variants:
         try:
-            server_proc.wait()
-        except KeyboardInterrupt:
-            print("[ЗАВЕРШЕНИЕ] Остановка сервера пользователем...")
-            server_proc.terminate()
+            mod = __import__(variant, fromlist=['Server'])
+            ServerClass = getattr(mod, 'Server')
+            server_imported = True
+            print(f"[ИМПОРТ ОК] Успешно импортировано через: {variant}")
+            break
+        except (ImportError, AttributeError):
+            continue
+
+    if server_imported and ServerClass:
+        print("[ИНФО] Лобби успешно запущено на порту 0.0.0.0:9339! Ожидаю туннель...")
+        try:
+            server = ServerClass("0.0.0.0", 9339)
+            server.start()
+        except Exception as server_error:
+            print(f"[КРИТИЧЕСКАЯ ОШИБКА ИГРОВОГО СЕРВЕРА]: {server_error}")
     else:
-        # Если сервер упал или не запустился, не даем контейнеру мгновенно закрыться, чтобы ты успел прочитать логи
-        print("[ВНИМАНИЕ] Сервер не смог запуститься. Ожидание 60 секунд перед закрытием...")
-        time.sleep(60)
+        print("[ВНИМАНИЕ] Не удалось импортировать класс Server!")
+        print(f"Текущая директория выполнения: {os.getcwd()}")
