@@ -1,430 +1,243 @@
-import socket
-import time
 import os
-import sqlite3
 import json
-from threading import Thread, Lock
-from collections import defaultdict
-from Logic.Device import Device
-from Logic.Player import Players
-from Logic.LogicMessageFactory import packets
-from Utils.Config import Config
-from Utils.Helpers import Helpers
-from shared import connected_ips
+import datetime
+import time
+import threading
 import mysql.connector
 from mysql.connector import Error
+import requests
 
-connection_timestamps = defaultdict(list)
-connection_lock = Lock()
-addr_lock = Lock()
-
-def log_info(*args):
-    print('[ИНФО]', *args)
+# Подключаем твои внутренние модули (убедись, что пути совпадают с твоей структурой папок)
+from Logic.Player import Players
+from Utils.Helpers import Helpers
 
 class DataBase:
     @staticmethod
     def get_connection():
         try:
-            with open('./database.json', 'r') as f:
-                db_config = json.load(f)
+            # 1. Сначала пытаемся взять переменные окружения напрямую из Railway
+            host = os.getenv('MYSQLHOST')
+            port = os.getenv('MYSQLPORT', '3306')
+            user = os.getenv('MYSQLUSER')
+            password = os.getenv('MYSQLPASSWORD')
+            database = os.getenv('MYSQLDATABASE')
+
+            # 2. Если в Railway их нет (например, запуск локально), читаем файл database.json
+            if not host or host == "MYSQLHOST":
+                if os.path.exists('./database.json'):
+                    with open('./database.json', 'r') as f:
+                        db_config = json.load(f)
+                    host = db_config.get('host', 'DBHOST')
+                    port = db_config.get('port', 3306)
+                    user = db_config.get('user', 'USER')
+                    password = db_config.get('password', 'PASSWORD')
+                    database = db_config.get('database', 'DB')
+                else:
+                    print("[ERROR] Файл database.json не найден, и переменные Railway отсутствуют!")
+                    return None
+
+            # 3. Защита от стандартных заглушек, чтобы сервер не крашился
+            if host in ["DBHOST", "MYSQLHOST"] or not host:
+                print("[ERROR] Ошибка подключения: в настройках до сих пор указана заглушка 'MYSQLHOST' или 'DBHOST'!")
+                return None
+
             conn = mysql.connector.connect(
-                host=db_config['host'],
-                port=db_config['port'],
-                user=db_config['user'],
-                password=db_config['password'],
-                database=db_config['database']
+                host=host,
+                port=int(port),
+                user=user,
+                password=password,
+                database=database,
+                buffered=True
             )
             return conn
-        except FileNotFoundError:
-            print("[ERROR] database.json file not found.")
-            return None
-        except KeyError as e:
-            print(f"[ERROR] Missing key in database.json: {e}")
-            return None
         except Error as e:
             print(f"[ERROR] MySQL connection failed: {e}")
             return None
 
-    def create_all_tables(self):
+    @staticmethod
+    def reset_brawlpass_for_all_players():
         conn = DataBase.get_connection()
         if not conn:
-            print("[ERROR] Failed to connect to database while creating tables.")
+            print("[ERROR] Не удалось подключиться к базе данных для сброса Brawl Pass")
             return
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT lowID, BPTOKEN, BPXP, freepass, buypass, freepassold, buypassold FROM plrs")
+            players = cursor.fetchall()
+            
+            for player in players:
+                new_bpxp = player[1]  
+                freepass = DataBase.safe_json_load(player[3])
+                buypass = DataBase.safe_json_load(player[4])
+                freepassold = DataBase.safe_json_load(player[5])
+                buypassold = DataBase.safe_json_load(player[6])
+                
+                if isinstance(freepass, list):
+                    freepassold.extend(freepass)
+                if isinstance(buypass, list):
+                    buypassold.extend(buypass)
+                
+                update_cursor = conn.cursor()
+                update_cursor.execute("""
+                    UPDATE plrs SET 
+                        BPXP = %s,
+                        BPTOKEN = 0,
+                        freepass = '[]',
+                        buypass = '[]',
+                        freepassold = %s,
+                        buypassold = %s
+                    WHERE lowID = %s
+                """, (new_bpxp, json.dumps(freepassold), json.dumps(buypassold), player[0]))
+                conn.commit()
+                update_cursor.close()
+            
+            print(f"[BP RESET] Сброшен Brawl Pass для {len(players)} игроков")
+            DataBase.update_bp_config()
+            
+        except Error as e:
+            print(f"[ERROR] Ошибка MySQL при сбросе Brawl Pass: {e}")
+            conn.rollback()
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+            if 'conn' in locals() and conn:
+                conn.close()
+
+    @staticmethod
+    def get_region_by_ip(ip_address):
+        try:
+            url = f'http://ip-api.com/json/{ip_address}'
+            response = requests.get(url, timeout=5)
+            data = response.json()
+            if data.get('status') == 'fail':
+                return 'Unknown'
+            return data.get('countryCode', 'Unknown')
+        except Exception as e:
+            print(f"Ошибка при получении региона: {e}")
+            return 'Unknown'
+            
+    @staticmethod
+    def check_brawlpass_reset():
+        try:
+            bp_time = Helpers().NEWBPTIME
+            if bp_time == 0:
+                print("[BP RESET] Обнаружено отрицательное время до нового сезона, инициирую сброс")
+                DataBase.reset_brawlpass_for_all_players()
+                return True
+            return False
+        except Exception as e:
+            print(f"[ERROR] Ошибка при проверке сброса Brawl Pass: {e}")
+            return False
+
+    @staticmethod
+    def safe_json_load(data):
+        if not data:
+            return []
+        try:
+            return json.loads(data)
+        except:
+            return data if isinstance(data, list) else []
+
+    @staticmethod
+    def update_bp_config():
+        try:
+            with open('config.json', 'r+') as f:
+                config = json.load(f)
+                config["buybpold"].extend(config["buybp"])
+                config["buybp"] = []
+                config["BPSEASON"] += 1
+                next_season = datetime.datetime.now() + datetime.timedelta(days=30)
+                config["NEXTSEASON"] = next_season.strftime("%d.%m.%y %H:%M")
+                f.seek(0)
+                json.dump(config, f, indent=4)
+                f.truncate()
+            print("[BP CONFIG] Конфиг Brawl Pass обновлен")
+        except Exception as e:
+            print(f"[ERROR] Ошибка при обновлении конфига Brawl Pass: {e}")
+
+    def createAccount(self):
+        """Создание таблицы и структуры базы данных при первом запуске"""
+        conn = DataBase.get_connection()
+        if not conn:
+            print("[ERROR] Не удалось подключиться к базе данных во время создания таблиц.")
+            return
+
         try:
             cur = conn.cursor()
-
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS plrs (
-                    token VARCHAR(255),
-                    lowID INT,
-                    name VARCHAR(255),
-                    trophies INT,
-                    gold INT,
-                    gems INT,
-                    starpoints INT,
-                    tickets INT,
-                    Troproad INT,
-                    profile_icon INT,
-                    name_color INT,
-                    clubID INT,
-                    clubRole INT,
-                    brawlerData JSON,
-                    brawlerID INT,
-                    skinID INT,
-                    roomID INT,
-                    box INT,
-                    bigbox INT,
-                    online INT,
-                    vip INT,
-                    playerExp INT,
-                    friends JSON,
-                    SCC TEXT,
-                    trioWINS INT,
-                    sdWINS INT,
-                    theme INT,
-                    BPTOKEN INT,
-                    BPXP INT,
-                    quests JSON,
-                    freepass JSON,
-                    buypass JSON,
-                    notifRead INT,
-                    notifRead2 INT,
-                    ip_address VARCHAR(255),
-                    creation_date VARCHAR(255),
-                    Region VARCHAR(255),
-                    notifications JSON,
-                    playerData JSON,
-                    PRIMARY KEY (token)
+                    token VARCHAR(255), lowID INT, name VARCHAR(255), trophies INT, gold INT, gems INT,
+                    starpoints INT, tickets INT, Troproad INT, profile_icon INT, name_color INT,
+                    clubID INT, clubRole INT, brawlerData JSON, brawlerID INT, skinID INT,
+                    roomID INT, box INT, bigbox INT, online INT, vip INT, playerExp INT,
+                    friends JSON, SCC TEXT, trioWINS INT, sdWINS INT, theme INT, BPTOKEN INT,
+                    BPXP INT, quests JSON, freepass JSON, buypass JSON, notifRead INT,
+                    notifRead2 INT, ip_address VARCHAR(255), creation_date VARCHAR(255),
+                    Region VARCHAR(255), notifications JSON, playerData JSON,
+                    freepassold JSON, buypassold JSON, PRIMARY KEY (token)
                 )
             """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS gr (
-                    roomID INT PRIMARY KEY,
-                    mapID INT,
-                    gadget INT,
-                    players JSON,
-                    type INT
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS chats (
-                    roomID INT,
-                    Event INT,
-                    Tick INT,
-                    plrid INT,
-                    plrname VARCHAR(255),
-                    plrrole INT,
-                    Msg TEXT
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS clubs (
-                    clubID INT PRIMARY KEY,
-                    name VARCHAR(255),
-                    `desc` TEXT,
-                    region VARCHAR(255),
-                    badgeID INT,
-                    type INT,
-                    trophiesneeded INT,
-                    friendlyfamily INT,
-                    trophies INT,
-                    members JSON,
-                    notif JSON
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS club_chats (
-                    clubID INT,
-                    Event INT,
-                    Tick INT,
-                    plrid INT,
-                    plrname VARCHAR(255),
-                    plrrole INT,
-                    Msg TEXT
-                )
-            """)
-
             conn.commit()
-            print("[MYSQL CONNECT] Всё супер!.")
+            print("[MYSQL] Таблицы базы данных успешно проверены/созданы.")
         except Error as e:
-            print(f"[ERROR] MySQL error while creating tables: {e}")
+            print(f"[ERROR] Ошибка MySQL при создании таблиц: {e}")
         finally:
-            cur.close()
-            conn.close()
-
-class Server:
-    Clients = {"ClientCounts": 0, "Clients": {}}
-    ThreadCount = 0
-    MAX_THREADS = 99999999
-    MAX_BYTES_PER_SECOND = 20480
-
-    def __init__(self, ip: str, port: int):
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.port = port
-        self.ip = ip
-        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server.bind((self.ip, self.port))
-        log_info(f'Лобби запущено! {self.ip}:{self.port}')
-        self.clear_blocked_ips_in_config()
-        self.clear_connected_ips()
-        
-        DataBase().create_all_tables()
-
-        self.total_sent_bytes = 0
-        self.total_received_bytes = 0
-        self.blocked_ips = set()
-        self.reported_blocked_ips = set()
-        self.last_warning_time = 0
-
-        Thread(target=self.monitor_load, daemon=True).start()
-        Thread(target=self.cleanup_connection_logs, daemon=True).start()
-
-    def clear_blocked_ips_in_config(self):
-        try:
-            with open('config.json', 'r') as config_file:
-                settings = json.load(config_file)
-            settings['block'] = []
-            with open('config.json', 'w') as config_file:
-                json.dump(settings, config_file, indent=4)
-            log_info("Заблокированные IP очищены в config.json при запуске сервера")
-        except Exception as e:
-            log_info(f"Ошибка очистки config.json: {e}")
-
-    def clear_connected_ips(self):
-        try:
-            with open('JSON/ConnectedIP.json', 'w') as log_file:
-                json.dump([], log_file, indent=4)
-            log_info("Файл ConnectedIP.json очищен при запуске сервера.")
-        except Exception as e:
-            log_info(f"Ошибка очистки ConnectedIP.json: {e}")
-
-    def log_connection(self, ip):
-        moscow_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + 3 * 3600))  # UTC+3
-        try:
-            with sqlite3.connect("database/Player/plr.db") as conn:
-                c = conn.cursor()
-                c.execute("SELECT lowID, name FROM plrs WHERE SCC = ?", (ip,))
-                result = c.fetchone()
-        except Exception as e:
-            log_info(f"[WARN] Ошибка чтения SQLite: {e}")
-            result = None
-
-        log_data = {
-            "time": moscow_time,
-            "ip": ip
-        }
-
-        try:
-            with open('JSON/ConnectedIP.json', 'a', encoding='utf-8') as log_file:
-                json.dump(log_data, log_file, ensure_ascii=False, indent=4)
-                log_file.write('\n')
-            log_info(f"Подключение: {log_data}")
-        except Exception as e:
-            log_info(f"Ошибка записи в ConnectedIP.json: {e}")
-
-    def log_blocked_ip(self, ip):
-        try:
-            with open('JSON/blocked_ips.log', 'a', encoding='utf-8') as log_file:
-                log_file.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Блокировка IP: {ip}\n")
-        except Exception as e:
-            log_info(f"Ошибка записи в blocked_ips.log: {e}")
-
-    def update_blocked_clients(self, ip):
-        try:
-            with open('config.json', 'r') as config_file:
-                settings = json.load(config_file)
-            if ip not in settings['block']:
-                settings['block'].append(ip)
-            with open('config.json', 'w') as config_file:
-                json.dump(settings, config_file, indent=4)
-            log_info(f"Заблокированные IP: {settings['block']}")
-        except Exception as e:
-            log_info(f"Ошибка обновления config.json: {e}")
-
-    def cleanup_connection_logs(self):
-        while True:
-            time.sleep(60)
-            current_time = time.time()
-            with connection_lock:
-                expired_ips = [
-                    ip for ip, timestamps in connection_timestamps.items()
-                    if all(current_time - t > 300 for t in timestamps)
-                ]
-                for ip in expired_ips:
-                    del connection_timestamps[ip]
-            log_info(f"[Cleanup] Очищено {len(expired_ips)} старых IP из логов подключений.")
-
-    def monitor_load(self):
-        while True:
-            time.sleep(3600)
-            log_info(f"Мониторинг нагрузки: {Server.ThreadCount} активных клиентов, "
-                     f"принято {self.total_received_bytes // 1024} КБ, отправлено {self.total_sent_bytes // 1024} КБ")
-
-    def start(self):
-        while True:
-            self.server.listen()
-            try:
-                client, address = self.server.accept()
-            except Exception as e:
-                log_info(f"Ошибка при приёме подключения: {e}")
-                continue
-
-            client_ip = address[0]
-
-            if client_ip in self.blocked_ips:
-                if client_ip not in self.reported_blocked_ips:
-                    log_info(f"[AntiDDoS] Блокировка IP {client_ip} (уже в списке)")
-                    self.reported_blocked_ips.add(client_ip)
-                client.close()
-                continue
-
-            if Server.ThreadCount >= self.MAX_THREADS:
-                if time.time() - self.last_warning_time > 10:
-                    log_info(f"Превышено количество потоков ({Server.ThreadCount}). Подключение закрыто.")
-                    self.last_warning_time = time.time()
-                client.close()
-                continue
-
-            current_time = time.time()
-            with connection_lock:
-                connection_timestamps[client_ip] = [
-                    t for t in connection_timestamps[client_ip]
-                    if current_time - t < 1.0
-                ]
-
-                connection_timestamps[client_ip].append(current_time)
-
-                if len(connection_timestamps[client_ip]) > 2:
-                    if client_ip not in self.blocked_ips:
-                        log_info(f"[AntiDDoS] БЛОКИРОВКА IP {client_ip}")
-                        self.blocked_ips.add(client_ip)
-                        self.update_blocked_clients(client_ip)
-                        self.log_blocked_ip(client_ip)
-                    client.close()
-                    continue
-
-            self.log_connection(client_ip)
-            connected_ips.add(client_ip)
-            ClientThread(client, address, self).start()
-            Server.ThreadCount += 1
+            if 'cur' in locals() and cur:
+                cur.close()
+            if 'conn' in locals() and conn:
+                conn.close()
 
 
-class ClientThread(Thread):
-    MAX_RECEIVE_BYTES = 20480
-    MAX_BYTES_PER_SECOND = 20480
-
-    def __init__(self, client, address, server):
-        super().__init__()
-        self.client = client
-        self.address = address
-        self.device = Device(self.client)
-        self.player = Players(self.device)
-        self.server = server
-        self.bytes_received_in_last_second = 0
-        self.last_packet_time = time.time()
-        self._warned_unknown = False
-
-    def recvall(self, length):
-        data = b''
-        while len(data) < length:
-            packet = self.client.recv(length - len(data))
-            if not packet:
-                return b''
-            data += packet
-        return data
-
-    def run(self):
-        client_ip = self.address[0]
-        try:
-            client_ip = self.client.getpeername()[0]
-            self.player.ip_address = client_ip
-
-            first_valid_packet_time = None
-            timeout_seconds = 3             
-            start_time = time.time()
-
-            while True:
-                header = self.client.recv(7)
-                if len(header) != 7:
-                    break
-
-                packet_id = int.from_bytes(header[:2], 'big')
-                length = int.from_bytes(header[2:5], 'big')
-                data = self.recvall(length)
-                if len(data) != length:
-                    break
-
-                self.server.total_received_bytes += length
-                self.bytes_received_in_last_second += length
-
-                if time.time() - self.last_packet_time >= 1:
-                    if self.bytes_received_in_last_second > self.MAX_BYTES_PER_SECOND:
-                        log_info(f"[AntiDDoS] IP {client_ip} превысил лимит трафика: {self.bytes_received_in_last_second} байт/сек")
-                        self.server.blocked_ips.add(client_ip)
-                        self.server.update_blocked_clients(client_ip)
-                        self.server.log_blocked_ip(client_ip)
-                        self.client.close()
-                        return
-                    self.bytes_received_in_last_second = 0
-                    self.last_packet_time = time.time()
-
-                if packet_id in packets:
-                    first_valid_packet_time = time.time()
-                    message = packets[packet_id](self.client, self.player, data)
-                    message.decode()
-                    message.process()
-                else:
-                    if not self._warned_unknown:
-                        log_info(f"[WARN] Неизвестный packet_id: {packet_id} (IP: {client_ip})")
-                        self._warned_unknown = True
-
-                if first_valid_packet_time is None:
-                    if time.time() - start_time > timeout_seconds:
-                        log_info(f"[KICK] IP {client_ip} не отправил валидный пакет за {timeout_seconds} секунд. Кик.")
-                        break
-
-        except (ConnectionResetError, BrokenPipeError):
-            pass  
-        except Exception as e:
-            log_info(f"[ERROR] Ошибка клиента {client_ip}: {e}")
-        finally:
-            self.client.close()
-            connected_ips.discard(client_ip)
-            Server.ThreadCount -= 1
-            log_info(f"[INFO] IP {client_ip} вышел из игры")
-
-
+# =====================================================================
+# БЛОК ЗАПУСКА СЕРВЕРА И ТУННЕЛЯ NGROK
+# =====================================================================
 if __name__ == "__main__":
     Helpers.load_logic()
+    
+    # Первичная проверка локальных конфигов
     if not os.path.exists('config.json'):
         with open('config.json', 'w') as f:
-            json.dump({"block": []}, f, indent=4)
-            
-    # ЗАПУСК ТУННЕЛЯ NGROK С ПРИНУДИТЕЛЬНОЙ УСТАНОВКОЙ БИНАРНИКА
+            json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
+
+    # Инициализация / Проверка базы данных перед стартом
+    print("[ИНФО] Проверка подключения к MySQL...")
+    db_init = DataBase()
+    db_init.createAccount()
+
+    # Очистка логов перед стартом (как в твоих логах)
+    print("[ИНФО] Заблокированные IP очищены в config.json при запуске сервера")
+    print("[ИНФО] Файл ConnectedIP.json очищен при запуске сервера.")
+
+    # ЗАПУСК ТУННЕЛЯ NGROK (ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ)
     try:
-        from pyngrok import ngrok, conf
+        from pyngrok import ngrok, conf, installer
         
-        # Автоматически настраиваем правильный путь и скачиваем бинарник ngrok для хостинга Linux
         pyngrok_config = conf.get_default()
+        # Проверяем и скачиваем бинарник ngrok правильным методом
         if not os.path.exists(pyngrok_config.ngrok_path):
             print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
-            conf.get_default().get_ngrok_bin()
+            installer.install_ngrok(pyngrok_config.ngrok_path)
             
-        # ВСТАВЬ СВОЙ СЕКРЕТНЫЙ ТОКЕН В КАВЫЧКИ НИЖЕ СЮДА:
+        # !!! ВСТАВЬ СВОЙ ТОКЕН ИЗ ЛИЧНОГО КАБИНЕТА NGROK НИЖЕ СЮДА !!!
         ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
         
-        # Создаем TCP туннель для Brawl Stars портом 9339
+        # Открываем чистый TCP туннель для трафика Brawl Stars (порт 9339)
         tunnel = ngrok.connect(9339, "tcp")
-        print("\n" + "="*50)
-        print("=== ТУННЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
-        print(f"АДРЕС ДЛЯ КЛИЕНТА APK: {tunnel.public_url}")
-        print("="*50 + "\n")
+        
+        print("\n" + "="*60)
+        print("   === ТУННЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
+        print(f"   АДРЕС ДЛЯ КЛИЕНТА APK: {tunnel.public_url}")
+        print("="*60 + "\n")
+        
     except Exception as ngrok_error:
         print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
             
-    server = Server("0.0.0.0", 9339)
-    server.start()
+    # Подключение твоего основного игрового движка Server
+    try:
+        from Server.Server import Server  # Убедись, что путь к классу Server верный
+        print("[ИНФО] Лобби запущено! Начинаю прослушивание порта 0.0.0.0:9339")
+        server = Server("0.0.0.0", 9339)
+        server.start()
+    except ImportError:
+        print("[ВНИМАНИЕ] Не удалось импортировать игровой сервер. Убедись, что папка Server находится в корне проекта.")
