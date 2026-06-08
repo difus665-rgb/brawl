@@ -8,51 +8,55 @@ import subprocess
 import threading
 import logging
 
-# =====================================================================
-# 1. ЖЕСТКОЕ ЗАГЛУШЕНИЕ TELEGRAM-БОТА И БАЗЫ ДАННЫХ RECON (МЫ ИЗБЕГАЕМ КРАШЕЙ)
-# =====================================================================
-
-# Заглушка для telebot (Убирает ошибку Conflict 409)
-try:
-    import telebot
-    class TeleBotMock:
-        def __init__(self, *args, **kwargs): pass
-        def __getattr__(self, name): return lambda *args, **kwargs: None
-        def infinity_polling(self, *args, **kwargs):
-            print("[ЗАГЛУШКА] Встроенный бот переведен в спящий режим."); time.sleep(36000)
-        def polling(self, *args, **kwargs):
-            print("[ЗАГЛУШКА] Встроенный бот переведен в спящий режим."); time.sleep(36000)
-    telebot.TeleBot = TeleBotMock
-    print("[УСПЕХ] Защита от конфликтов Telegram-бота активна.")
-except ImportError:
-    pass
-
-# Заглушка для mysql.connector (Убирает ошибку Unknown MySQL server host)
-try:
-    import mysql.connector
-    class MockCursor:
-        def execute(self, *args, **kwargs): return None
-        def fetchall(self, *args, **kwargs): return []
-        def fetchone(self, *args, **kwargs): return None
-        def close(self, *args, **kwargs): return None
-    class MockConnection:
-        def cursor(self, *args, **kwargs): return MockCursor()
-        def commit(self, *args, **kwargs): pass
-        def close(self, *args, **kwargs): pass
-        def is_connected(self): return True
-    
-    # Подменяем метод коннекта, чтобы он возвращал фейковое рабочее соединение
-    mysql.connector.connect = lambda *args, **kwargs: MockConnection()
-    print("[УСПЕХ] База данных MySQL переведена в изолированный автономный режим.")
-except ImportError:
-    pass
-
-# Отключаем спам-логи
+# Настройка базового логирования для Railway
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# =====================================================================
+# ЗАКРЫВАЕМ ВОПРОС С БОТОМ И MYSQL НА УРОВНЕ СИСТЕМНОГО КЕША PYTHON
+# =====================================================================
+
+# 1. Создаем абсолютную пустышку-заглушку для Telegram бота
+class AbsoluteBotMock:
+    def __init__(self, *args, **kwargs): pass
+    def __getattr__(self, name): return lambda *args, **kwargs: None
+    def infinity_polling(self, *args, **kwargs):
+        print("[СИСТЕМА] Встроенный бот успешно переведен в режим сна."); time.sleep(360000)
+    def polling(self, *args, **kwargs):
+        print("[СИСТЕМА] Встроенный бот успешно переведен в режим сна."); time.sleep(360000)
+
+# Принудительно заменяем модуль telebot во всей системе Python
+import types
+mock_telebot = types.ModuleType('telebot')
+mock_telebot.TeleBot = AbsoluteBotMock
+sys.modules['telebot'] = mock_telebot
+print("[УСПЕХ] Жесткая блокировка TeleBot активирована.")
+
+# 2. Создаем абсолютную пустышку-заглушку для Базы Данных MySQL
+class MockCursor:
+    def execute(self, *args, **kwargs): return None
+    def fetchall(self, *args, **kwargs): return []
+    def fetchone(self, *args, **kwargs): return None
+    def close(self, *args, **kwargs): return None
+
+class MockConnection:
+    def cursor(self, *args, **kwargs): return MockCursor()
+    def commit(self, *args, **kwargs): pass
+    def close(self, *args, **kwargs): pass
+    def is_connected(self): return True
+
+mock_mysql = types.ModuleType('mysql')
+mock_mysql_connector = types.ModuleType('mysql.connector')
+mock_mysql_connector.connect = lambda *args, **kwargs: MockConnection()
+sys.modules['mysql'] = mock_mysql
+sys.modules['mysql.connector'] = mock_mysql_connector
+print("[УСПЕХ] Жесткая блокировка MySQL БД активирована.")
+
+# Отключаем лишние системные логи
 for logger_name in ['TeleBot', 'telebot', 'urllib3', 'mysql']:
     logging.getLogger(logger_name).setLevel(logging.CRITICAL)
 
-# Настройка путей
+# Настройка рабочих папок сервера Brawl Stars
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 
@@ -66,20 +70,9 @@ if not os.path.exists('config.json'):
     with open('config.json', 'w') as f:
         json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
 
-# Глобальный класс заглушки для внутренних файлов (на всякий случай)
-class DataBase:
-    @staticmethod
-    def get_connection(): return None
-    @staticmethod
-    def reset_brawlpass_for_all_players(): return
-    @staticmethod
-    def check_brawlpass_reset(): return False
-    @staticmethod
-    def createAccount(self): return
-
 
 # =====================================================================
-# 2. ЗАПУСК ТУННЕЛЯ PLAYIT.GG (ВЫВОД ССЫЛКИ ДЛЯ IP И ПОРТА)
+# АВТОЗАПУСК ТУННЕЛЯ PLAYIT.GG (ПОЛУЧЕНИЕ IP И ПОРТА)
 # =====================================================================
 def start_playit_tunnel():
     print("[PLAYIT] Подготовка агента Playit.gg...")
@@ -127,10 +120,10 @@ def start_playit_tunnel():
 
 
 # =====================================================================
-# 3. ТОЧКА ВХОДА И ЗАПУСК СЕРВЕРА БРАВЛ СТАРС
+# СТАРТ ЧИСТОГО ИГРОВОГО ДВИЖКА BRAWL STARS
 # =====================================================================
 if __name__ == "__main__":
-    print("[ИНФО] Старт сервера в автономном файловом режиме...")
+    print("[ИНФО] Старт сервера в автономном изолированном режиме...")
     start_playit_tunnel()
     time.sleep(3)
             
@@ -152,7 +145,7 @@ if __name__ == "__main__":
             continue
 
     if server_imported and ServerClass:
-        print("[ИНФО] Лобби Brawl Stars успешно запущено на порту 0.0.0.0:9339! Ожидаю подключение туннеля...")
+        print("[ИНФО] Лобби Brawl Stars успешно запущено на порту 0.0.0.0:9339!")
         try:
             server = ServerClass("0.0.0.0", 9339)
             server.start()
