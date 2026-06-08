@@ -7,54 +7,74 @@ import requests
 import subprocess
 import threading
 import logging
+from types import ModuleType
 
 # Настройка логирования для Railway
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # =====================================================================
-# 1. ЖЕСТКАЯ ЗАЩИТА ЯДРА (УБИВАЕМ БОТА И MYSQL ДО ЗАГРУЗКИ SERVER.PY)
+# АБСОЛЮТНЫЙ БЛОКАТОР: КОРРЕКТНОЕ ГЛУШЕНИЕ TELEBOT И MYSQL (С МЕТОДОМ CLOSE)
 # =====================================================================
 
-# Полностью перехватываем запуск потоков в Python на самом низком уровне
-_original_start = threading.Thread.start
-def _secure_start(self):
-    t_name = str(self.name).lower()
-    # Фильтруем любые потоки, связанные с ботом или наградами базы данных
-    if any(x in t_name for x in ["telebot", "polling", "rewards", "bot", "mysql"]):
-        print(f"[БЛОКИРОВКА СИСТЕМЫ] Фоновый поток '{self.name}' успешно отключен скриптом core.py.")
-        return # Выходим, поток физически не запустится
-    return _original_start(self)
-threading.Thread.start = _secure_start
+class DeepMock(ModuleType):
+    """Фейк-объект, имитирующий модули, функции и любые вложенные свойства"""
+    def __init__(self, name):
+        super().__init__(name)
+    def __getattr__(self, item):
+        # 1. Если просят бота
+        if item in ('TeleBot', 'Bot'):
+            class DummyBot:
+                def __init__(self, *args, **kwargs): pass
+                def __getattr__(self, name): return lambda *args, **kwargs: None
+                def infinity_polling(self, *args, **kwargs): time.sleep(36000)
+                def polling(self, *args, **kwargs): time.sleep(36000)
+            return DummyBot
+        
+        # 2. Если вызывают mysql.connector.connect()
+        if item == 'connect':
+            class DummyCursor:
+                def execute(self, *args, **kwargs): return None
+                def fetchall(self, *args, **kwargs): return []
+                def fetchone(self, *args, **kwargs): return None
+                def close(self, *args, **kwargs): return None
+            class DummyConn:
+                def cursor(self, *args, **kwargs): return DummyCursor()
+                def commit(self, *args, **kwargs): pass
+                def close(self, *args, **kwargs): return None  # ЗАЩИТА ОТ КРАША НА СТРОКЕ 550!
+                def is_connected(self): return True
+            return lambda *args, **kwargs: DummyConn()
+            
+        return DeepMock(f"{self.__name__}.{item}")
+    def __call__(self, *args, **kwargs):
+        # Специальный фикс: если сам коннект вызывают напрямую как функцию, 
+        # возвращаем объект, у которого ЕСТЬ метод close(), чтобы botuser.py не падал
+        class FallbackConn:
+            def cursor(self, *args, **kwargs):
+                class FallbackCursor:
+                    def execute(self, *args, **kwargs): return None
+                    def fetchall(self, *args, **kwargs): return []
+                    def fetchone(self, *args, **kwargs): return None
+                    def close(self, *args, **kwargs): return None
+                return FallbackCursor()
+            def commit(self, *args, **kwargs): pass
+            def close(self, *args, **kwargs): return None
+            def is_connected(self): return True
+        return FallbackConn()
 
-# Создаем системную пустышку для mysql.connector, чтобы distribute_rewards() не падала
-import types
-class _CursorMock:
-    def execute(self, *args, **kwargs): return None
-    def fetchall(self, *args, **kwargs): return []
-    def fetchone(self, *args, **kwargs): return None
-    def close(self, *args, **kwargs): return None
-class _ConnMock:
-    def cursor(self, *args, **kwargs): return _CursorMock()
-    def commit(self, *args, **kwargs): pass
-    def close(self, *args, **kwargs): pass
-    def is_connected(self): return True
+# Заменяем все возможные вариации библиотек в оперативной памяти Python
+sys.modules['telebot'] = DeepMock('telebot')
+sys.modules['telebot.util'] = DeepMock('telebot.util')
+sys.modules['telebot.apihelper'] = DeepMock('telebot.apihelper')
+sys.modules['mysql'] = DeepMock('mysql')
+sys.modules['mysql.connector'] = DeepMock('mysql.connector')
 
-_mock_mysql = types.ModuleType('mysql')
-_mock_mysql_connector = types.ModuleType('mysql.connector')
-_mock_mysql_connector.connect = lambda *args, **kwargs: _ConnMock()
-sys.modules['mysql'] = _mock_mysql
-sys.modules['mysql.connector'] = _mock_mysql_connector
-
-# Глушим логи самого телебота, чтобы они не засоряли консоль Railway
-for log_name in ['TeleBot', 'telebot', 'urllib3']:
+for log_name in ['TeleBot', 'telebot', 'urllib3', 'mysql']:
     logging.getLogger(log_name).setLevel(logging.CRITICAL)
 
 print("[СИСТЕМА] Защита ядра активна. Конфликты с ботом и MySQL полностью нейтрализованы.")
 
-
 # =====================================================================
-# 2. АВТОЗАПУСК ТУННЕЛЯ PLAYIT.GG (ПОЛУЧЕНИЕ IP И ПОРТА)
+# АВТОЗАПУСК ТУННЕЛЯ PLAYIT.GG (ПОЛУЧЕНИЕ IP И ПОРТА)
 # =====================================================================
 def start_playit_tunnel():
     print("[PLAYIT] Подготовка агента Playit.gg...")
@@ -97,4 +117,28 @@ def start_playit_tunnel():
 
     thread = threading.Thread(target=run_agent, name="PlayitTunnel")
     thread.daemon = True
-    _original_start(thread) # Запускаем туннель в обход
+    thread.start()
+
+
+# =====================================================================
+# ЧИСТЫЙ ИМПОРТ И ЗАПУСК ТВОЕЙ ИГРЫ
+# =====================================================================
+if __name__ == "__main__":
+    start_playit_tunnel()
+    time.sleep(2)
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.append(current_dir)
+
+    print("[ИНФО] Загрузка твоего оригинального Server.py...")
+    try:
+        import Server as OriginalServerModule
+        
+        print("[ИНФО] Запуск лобби Brawl Stars на порту 9339...")
+        srv = OriginalServerModule.Server("0.0.0.0", 9339)
+        srv.start()
+        
+    except Exception as err:
+        print(f"[КРИТИЧЕСКАЯ ОШИБКА ИГРЫ]: {err}")
+        time.sleep(60)
