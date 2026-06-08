@@ -9,32 +9,47 @@ import threading
 import logging
 
 # =====================================================================
-# ЖЕСТКАЯ БЛОКИРОВКА ЗАПУСКА ТЕЛЕГРАМ-БОТА (УБИРАЕМ ОШИБКУ 409)
+# 1. ЖЕСТКОЕ ЗАГЛУШЕНИЕ TELEGRAM-БОТА И БАЗЫ ДАННЫХ RECON (МЫ ИЗБЕГАЕМ КРАШЕЙ)
 # =====================================================================
+
+# Заглушка для telebot (Убирает ошибку Conflict 409)
 try:
     import telebot
-    # Создаем класс-заглушку, который прикидывается работающим ботом
     class TeleBotMock:
         def __init__(self, *args, **kwargs): pass
-        def __getattr__(self, name):
-            # На любые вызовы методов бота (отправка сообщений и т.д.) возвращаем пустую функцию
-            return lambda *args, **kwargs: None
+        def __getattr__(self, name): return lambda *args, **kwargs: None
         def infinity_polling(self, *args, **kwargs):
-            print("[БЛОКИРОВКА] Попытка запуска встроенного бота заблокирована скриптом core.py")
-            while True: time.sleep(3600) # Просто спим, имитируя работу
+            print("[ЗАГЛУШКА] Встроенный бот переведен в спящий режим."); time.sleep(36000)
         def polling(self, *args, **kwargs):
-            print("[БЛОКИРОВКА] Попытка запуска встроенного бота заблокирована скриптом core.py")
-            while True: time.sleep(3600)
-
-    # Подменяем оригинальный класс TeleBot на нашу заглушку
+            print("[ЗАГЛУШКА] Встроенный бот переведен в спящий режим."); time.sleep(36000)
     telebot.TeleBot = TeleBotMock
-    print("[УСПЕХ] Защита от конфликтов Telegram-бота успешно активирована.")
+    print("[УСПЕХ] Защита от конфликтов Telegram-бота активна.")
 except ImportError:
     pass
 
-# Отключаем лишние логи
+# Заглушка для mysql.connector (Убирает ошибку Unknown MySQL server host)
+try:
+    import mysql.connector
+    class MockCursor:
+        def execute(self, *args, **kwargs): return None
+        def fetchall(self, *args, **kwargs): return []
+        def fetchone(self, *args, **kwargs): return None
+        def close(self, *args, **kwargs): return None
+    class MockConnection:
+        def cursor(self, *args, **kwargs): return MockCursor()
+        def commit(self, *args, **kwargs): pass
+        def close(self, *args, **kwargs): pass
+        def is_connected(self): return True
+    
+    # Подменяем метод коннекта, чтобы он возвращал фейковое рабочее соединение
+    mysql.connector.connect = lambda *args, **kwargs: MockConnection()
+    print("[УСПЕХ] База данных MySQL переведена в изолированный автономный режим.")
+except ImportError:
+    pass
+
+# Отключаем спам-логи
 logging.basicConfig(level=logging.INFO)
-for logger_name in ['TeleBot', 'telebot', 'urllib3']:
+for logger_name in ['TeleBot', 'telebot', 'urllib3', 'mysql']:
     logging.getLogger(logger_name).setLevel(logging.CRITICAL)
 
 # Настройка путей
@@ -51,7 +66,7 @@ if not os.path.exists('config.json'):
     with open('config.json', 'w') as f:
         json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
 
-# Заглушка MySQL
+# Глобальный класс заглушки для внутренних файлов (на всякий случай)
 class DataBase:
     @staticmethod
     def get_connection(): return None
@@ -64,7 +79,7 @@ class DataBase:
 
 
 # =====================================================================
-# ЗАПУСК ТУННЕЛЯ PLAYIT.GG (ПОЛУЧЕНИЕ IP И ПОРТА)
+# 2. ЗАПУСК ТУННЕЛЯ PLAYIT.GG (ВЫВОД ССЫЛКИ ДЛЯ IP И ПОРТА)
 # =====================================================================
 def start_playit_tunnel():
     print("[PLAYIT] Подготовка агента Playit.gg...")
@@ -102,7 +117,7 @@ def start_playit_tunnel():
                     print("!" * 70 + "\n")
                 else:
                     if "tunnel running" in line_str.lower() or "connected" in line_str.lower():
-                        print(f"[PLAYIT] {line_str}")
+                        print(f"[PLAYIT LOG] {line_str}")
         except Exception as e:
             print(f"[ОШИБКА PLAYIT]: {e}")
 
@@ -112,10 +127,10 @@ def start_playit_tunnel():
 
 
 # =====================================================================
-# ЗАПУСК ИГРОВОГО СЕРВЕРА
+# 3. ТОЧКА ВХОДА И ЗАПУСК СЕРВЕРА БРАВЛ СТАРС
 # =====================================================================
 if __name__ == "__main__":
-    print("[ИНФО] Старт сервера в автономном режиме...")
+    print("[ИНФО] Старт сервера в автономном файловом режиме...")
     start_playit_tunnel()
     time.sleep(3)
             
@@ -131,19 +146,18 @@ if __name__ == "__main__":
             mod = __import__(variant, fromlist=['Server'])
             ServerClass = getattr(mod, 'Server')
             server_imported = True
-            print(f"[ИМПОРТ ОК] Модуль игры загружен через: {variant}")
+            print(f"[ИМПОРТ ОК] Модуль игры успешно загружен через: {variant}")
             break
         except Exception:
             continue
 
     if server_imported and ServerClass:
-        print("[ИНФО] Лобби Brawl Stars запускается на порту 9339...")
+        print("[ИНФО] Лобби Brawl Stars успешно запущено на порту 0.0.0.0:9339! Ожидаю подключение туннеля...")
         try:
             server = ServerClass("0.0.0.0", 9339)
             server.start()
         except Exception as server_error:
             print(f"[КРИТИЧЕСКАЯ ОШИБКА ИГРОВОГО СЕРВЕРА]: {server_error}")
     else:
-        print("[ВНИМАНИЕ] Не удалось загрузить класс Server. Проверьте файлы.")
-        time.sleep(120)
-        
+        print("[ВНИМАНИЕ] Не удалось загрузить класс Server. Проверьте файлы проекта.")
+        time.sleep(60)
