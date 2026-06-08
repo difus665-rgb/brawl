@@ -12,11 +12,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Полное глушение логов библиотеки telebot, чтобы ошибка 409 не забивала консоль
+telebot_logger = logging.getLogger('TeleBot')
+telebot_logger.setLevel(logging.CRITICAL)
+
 # 1. АВТОМАТИЧЕСКИЙ ПОИСК ПАПОК ПРОЕКТА
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 
-# Добавляем все возможные пути в Python, чтобы импорты Logic и Server работали
 for path in [current_dir, parent_dir]:
     if path not in sys.path:
         sys.path.append(path)
@@ -25,7 +28,6 @@ for path in [current_dir, parent_dir]:
             if root not in sys.path:
                 sys.path.append(root)
 
-# Безопасный импорт внутренней логики сервера Brawl Stars
 try:
     from Logic.Player import Players
     from Utils.Helpers import Helpers
@@ -34,7 +36,6 @@ except ImportError:
         @staticmethod
         def load_logic(): pass
 
-# Заглушка класса DataBase для совместимости с файлами сборки (файловый режим JSON)
 class DataBase:
     @staticmethod
     def get_connection(): return None
@@ -46,10 +47,9 @@ class DataBase:
     def createAccount(self): return
 
 def distribute_rewards():
-    print("[ИНФО] Фоновый поток наград активен (Файловый режим)...")
+    pass
 
-
-# 2. ОДИН ФУНКЦИОНАЛ ДЛЯ СКАЧИВАНИЯ И ЗАПУСКА PLAYIT.GG
+# 2. ФУНКЦИОНАЛ ДЛЯ СКАЧИВАНИЯ И ЗАПУСКА PLAYIT.GG
 def start_playit_tunnel():
     print("[PLAYIT] Подготовка агента Playit.gg...")
     playit_path = os.path.join(current_dir, "playit")
@@ -73,7 +73,6 @@ def start_playit_tunnel():
     def run_agent():
         try:
             print("[PLAYIT] Запуск туннеля...")
-            # Объединяем вывод ошибок и логов, чтобы поймать ссылку активации
             process = subprocess.Popen(
                 [playit_path, "--secret_path", os.path.join(current_dir, "playit-secret.json")],
                 stdout=subprocess.PIPE,
@@ -83,7 +82,6 @@ def start_playit_tunnel():
             
             for line in process.stdout:
                 line_str = line.strip()
-                # Перехватываем ссылку для генерации твоего IP и Порта
                 if "https://playit.gg/claim/" in line_str or "claim" in line_str.lower():
                     print("\n" + "!" * 60)
                     print("   === ССЫЛКА ДЛЯ ПОЛУЧЕНИЯ IP И ПОРТА ===")
@@ -115,12 +113,7 @@ if __name__ == "__main__":
 
     print("[ИНФО] Сервер запускается в автономном файловом режиме (JSON)...")
 
-    # Запуск фонового распределения наград
-    reward_thread = threading.Thread(target=distribute_rewards, name="distribute_rewards")
-    reward_thread.daemon = True
-    reward_thread.start()
-
-    # СТАРТ ТУННЕЛЯ PLAYIT (Выдаст айпи и порт в логи)
+    # СТАРТ ТУННЕЛЯ PLAYIT
     start_playit_tunnel()
     time.sleep(2)
             
@@ -128,7 +121,6 @@ if __name__ == "__main__":
     server_imported = False
     ServerClass = None
     
-    # Перебираем все варианты путей, включая распакованную папку из архива
     import_variants = [
         "Server.Server",
         "server.Server",
@@ -147,7 +139,7 @@ if __name__ == "__main__":
             continue
 
     if server_imported and ServerClass:
-        print("[ИНФО] Лобби успешно запущено на порту 0.0.0.0:9339! Ожидаю туннель...")
+        print("[ИНФО] Лобби успешно запущено на порту 0.0.0.0:9339!")
         try:
             server = ServerClass("0.0.0.0", 9339)
             server.start()
@@ -155,4 +147,3 @@ if __name__ == "__main__":
             print(f"[КРИТИЧЕСКАЯ ОШИБКА ИГРОВОГО СЕРВЕРА]: {server_error}")
     else:
         print("[ВНИМАНИЕ] Не удалось импортировать класс Server!")
-        print(f"Текущая директория выполнения: {os.getcwd()}")
