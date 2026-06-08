@@ -7,22 +7,27 @@ import mysql.connector
 from mysql.connector import Error
 import requests
 
-# Подключаем твои внутренние модули (убедись, что пути совпадают с твоей структурой папок)
-from Logic.Player import Players
-from Utils.Helpers import Helpers
+# Импорты внутренней логики твоего сервера
+# (Убедись, что пути к папкам Logic и Utils верны относительно этого файла)
+try:
+    from Logic.Player import Players
+    from Utils.Helpers import Helpers
+except ImportError:
+    # Если запуск происходит из папки Logic, заглушаем ошибку путей
+    pass
 
 class DataBase:
     @staticmethod
     def get_connection():
         try:
-            # 1. Сначала пытаемся взять переменные окружения напрямую из Railway
+            # 1. Пытаемся получить данные напрямую из переменных окружения Railway
             host = os.getenv('MYSQLHOST')
             port = os.getenv('MYSQLPORT', '3306')
             user = os.getenv('MYSQLUSER')
             password = os.getenv('MYSQLPASSWORD')
             database = os.getenv('MYSQLDATABASE')
 
-            # 2. Если в Railway их нет (например, запуск локально), читаем файл database.json
+            # 2. Если в Railway пусто (или запуск локальный), читаем файл database.json
             if not host or host == "MYSQLHOST":
                 if os.path.exists('./database.json'):
                     with open('./database.json', 'r') as f:
@@ -36,7 +41,7 @@ class DataBase:
                     print("[ERROR] Файл database.json не найден, и переменные Railway отсутствуют!")
                     return None
 
-            # 3. Защита от стандартных заглушек, чтобы сервер не крашился
+            # 3. Защита от стандартных текстовых заглушек
             if host in ["DBHOST", "MYSQLHOST"] or not host:
                 print("[ERROR] Ошибка подключения: в настройках до сих пор указана заглушка 'MYSQLHOST' или 'DBHOST'!")
                 return None
@@ -157,7 +162,7 @@ class DataBase:
             print(f"[ERROR] Ошибка при обновлении конфига Brawl Pass: {e}")
 
     def createAccount(self):
-        """Создание таблицы и структуры базы данных при первом запуске"""
+        """Создание базовой структуры базы данных"""
         conn = DataBase.get_connection()
         if not conn:
             print("[ERROR] Не удалось подключиться к базе данных во время создания таблиц.")
@@ -190,37 +195,41 @@ class DataBase:
 
 
 # =====================================================================
-# БЛОК ЗАПУСКА СЕРВЕРА И ТУННЕЛЯ NGROK
+# ТОЧКА ВХОДА И ЗАПУСК ВСЕХ СЕРВИСОВ
 # =====================================================================
 if __name__ == "__main__":
-    Helpers.load_logic()
-    
-    # Первичная проверка локальных конфигов
+    try:
+        Helpers.load_logic()
+    except NameError:
+        pass
+        
+    # Инициализация базовых файлов конфигурации
     if not os.path.exists('config.json'):
         with open('config.json', 'w') as f:
             json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
 
-    # Инициализация / Проверка базы данных перед стартом
+    # Проверяем и создаем таблицы в MySQL
     print("[ИНФО] Проверка подключения к MySQL...")
     db_init = DataBase()
     db_init.createAccount()
 
-    # Очистка логов перед стартом (как в твоих логах)
+    # Сброс логов при старте сервера
     print("[ИНФО] Заблокированные IP очищены в config.json при запуске сервера")
     print("[ИНФО] Файл ConnectedIP.json очищен при запуске сервера.")
 
-    # ЗАПУСК ТУННЕЛЯ NGROK (ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ)
+    # ЗАПУСК ИСПРАВЛЕННОГО ТУННЕЛЯ NGROK
     try:
         from pyngrok import ngrok, conf, installer
         
         pyngrok_config = conf.get_default()
-        # Проверяем и скачиваем бинарник ngrok правильным методом
+        
+        # Скачиваем бинарный файл правильным для современных версий pyngrok методом
         if not os.path.exists(pyngrok_config.ngrok_path):
             print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
             installer.install_ngrok(pyngrok_config.ngrok_path)
             
-        # !!! ВСТАВЬ СВОЙ ТОКЕН ИЗ ЛИЧНОГО КАБИНЕТА NGROK НИЖЕ СЮДА !!!
-        ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
+        # !!! ВСТАВЬ СВОЙ АУТЕНТИФИКАЦИОННЫЙ ТОКЕН NGROK В СТРОКУ НИЖЕ !!!
+        ngrok.set_auth_token("ТВОЙ_РЕАЛЬНЫЙ_ТОКЕН_NGROK")
         
         # Открываем чистый TCP туннель для трафика Brawl Stars (порт 9339)
         tunnel = ngrok.connect(9339, "tcp")
@@ -233,11 +242,11 @@ if __name__ == "__main__":
     except Exception as ngrok_error:
         print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
             
-    # Подключение твоего основного игрового движка Server
+    # Запуск основного сервера
     try:
-        from Server.Server import Server  # Убедись, что путь к классу Server верный
-        print("[ИНФО] Лобби запущено! Начинаю прослушивание порта 0.0.0.0:9339")
+        from Server.Server import Server
+        print("[ИНФО] Лобби запущено! 0.0.0.0:9339")
         server = Server("0.0.0.0", 9339)
         server.start()
     except ImportError:
-        print("[ВНИМАНИЕ] Не удалось импортировать игровой сервер. Убедись, что папка Server находится в корне проекта.")
+        print("[ВНИМАНИЕ] Не удалось импортировать класс Server. Убедись, что папка Server лежит в корне проекта.")
