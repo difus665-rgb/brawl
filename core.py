@@ -259,7 +259,7 @@ if __name__ == "__main__":
     reward_thread.daemon = True
     reward_thread.start()
 
-    # ЗАПУСК ТУННЕЛЯ NGROK
+    # ЗАПУСК ТУННЕЛЯ NGROK (СТРОКА ИСПРАВЛЕНА!)
     try:
         from pyngrok import ngrok, conf, installer
         
@@ -268,7 +268,7 @@ if __name__ == "__main__":
             print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
             installer.install_ngrok(pyngrok_config.ngrok_path)
             
-        # Твой токен успешно интегрирован
+        # Строка с токеном теперь цельная и не ломает код:
         ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
         
         tunnel = ngrok.connect(9339, "tcp")
