@@ -7,26 +7,26 @@ import mysql.connector
 from mysql.connector import Error
 import requests
 
-# Импорты внутренней логики твоего сервера
+# Імпорти внутрішньої логіки твого сервера
 try:
     from Logic.Player import Players
     from Utils.Helpers import Helpers
 except ImportError:
-    # Если запуск происходит из другой директории, заглушаем ошибку путей
+    # Заглушка, якщо структура папок відрізняється при імпорті
     pass
 
 class DataBase:
     @staticmethod
     def get_connection():
         try:
-            # 1. Пытаемся получить данные напрямую из переменных окружения Railway
+            # 1. Намагаємося отримати змінні безпосередньо з оточення Railway
             host = os.getenv('MYSQLHOST')
             port = os.getenv('MYSQLPORT', '3306')
             user = os.getenv('MYSQLUSER')
             password = os.getenv('MYSQLPASSWORD')
             database = os.getenv('MYSQLDATABASE')
 
-            # 2. Если в Railway пусто (или запуск локальный), читаем файл database.json
+            # 2. Якщо в Railway пусто, читаємо локальний файл database.json
             if not host or host == "MYSQLHOST":
                 if os.path.exists('./database.json'):
                     with open('./database.json', 'r') as f:
@@ -37,12 +37,12 @@ class DataBase:
                     password = db_config.get('password', 'PASSWORD')
                     database = db_config.get('database', 'DB')
                 else:
-                    print("[ERROR] Файл database.json не найден, и переменные Railway отсутствуют!")
+                    print("[ERROR] Файл database.json не знайдено, і змінні Railway відсутні!")
                     return None
 
-            # 3. Защита от стандартных текстовых заглушек
+            # 3. Захист від стандартних текстових заглушок
             if host in ["DBHOST", "MYSQLHOST"] or not host:
-                print("[ERROR] Ошибка подключения: в настройках до сих пор указана заглушка 'MYSQLHOST' или 'DBHOST'!")
+                print("[ERROR] Помилка підключення: в налаштуваннях досі вказана заглушка 'MYSQLHOST' або 'DBHOST'!")
                 return None
 
             conn = mysql.connector.connect(
@@ -55,14 +55,14 @@ class DataBase:
             )
             return conn
         except Error as e:
-            print(f"[ERROR] MySQL connection failed: {e}")
+            print(f"[ERROR] MySQL з'єднання не вдалося: {e}")
             return None
 
     @staticmethod
     def reset_brawlpass_for_all_players():
         conn = DataBase.get_connection()
         if not conn:
-            print("[ERROR] Не удалось подключиться к базе данных для сброса Brawl Pass")
+            print("[ERROR] Не вдалося підключитися до бази даних для скидання Brawl Pass")
             return
 
         try:
@@ -96,11 +96,11 @@ class DataBase:
                 conn.commit()
                 update_cursor.close()
             
-            print(f"[BP RESET] Сброшен Brawl Pass для {len(players)} игроков")
+            print(f"[BP RESET] Скинуто Brawl Pass для {len(players)} гравців")
             DataBase.update_bp_config()
             
         except Error as e:
-            print(f"[ERROR] Ошибка MySQL при сбросе Brawl Pass: {e}")
+            print(f"[ERROR] Помилка MySQL при скиданні Brawl Pass: {e}")
             conn.rollback()
         finally:
             if 'cursor' in locals() and cursor:
@@ -118,7 +118,7 @@ class DataBase:
                 return 'Unknown'
             return data.get('countryCode', 'Unknown')
         except Exception as e:
-            print(f"Ошибка при получении региона: {e}")
+            print(f"Помилка при отриманні регіону: {e}")
             return 'Unknown'
             
     @staticmethod
@@ -126,12 +126,12 @@ class DataBase:
         try:
             bp_time = Helpers().NEWBPTIME
             if bp_time == 0:
-                print("[BP RESET] Обнаружено отрицательное время до нового сезона, инициирую сброс")
+                print("[BP RESET] Виявлено негативний час до нового сезону, запускаю скидання")
                 DataBase.reset_brawlpass_for_all_players()
                 return True
             return False
         except Exception as e:
-            print(f"[ERROR] Ошибка при проверке сброса Brawl Pass: {e}")
+            print(f"[ERROR] Помилка при перевірці скидання Brawl Pass: {e}")
             return False
 
     @staticmethod
@@ -156,15 +156,15 @@ class DataBase:
                 f.seek(0)
                 json.dump(config, f, indent=4)
                 f.truncate()
-            print("[BP CONFIG] Конфиг Brawl Pass обновлен")
+            print("[BP CONFIG] Конфіг Brawl Pass оновлено")
         except Exception as e:
-            print(f"[ERROR] Ошибка при обновлении конфига Brawl Pass: {e}")
+            print(f"[ERROR] Помилка при оновленні конфігу Brawl Pass: {e}")
 
     def createAccount(self):
-        """Создание базовой структуры базы данных"""
+        """Створення структури таблиць бази даних"""
         conn = DataBase.get_connection()
         if not conn:
-            print("[ERROR] Не удалось подключиться к базе данных во время создания таблиц.")
+            print("[ERROR] Не вдалося підключитися до бази даних під час створення таблиць.")
             return
 
         try:
@@ -183,9 +183,9 @@ class DataBase:
                 )
             """)
             conn.commit()
-            print("[MYSQL] Таблицы базы данных успешно проверены/созданы.")
+            print("[MYSQL] Таблиці бази даних успішно перевірені/створені.")
         except Error as e:
-            print(f"[ERROR] Ошибка MySQL при создании таблиц: {e}")
+            print(f"[ERROR] Помилка MySQL при створенні таблиць: {e}")
         finally:
             if 'cur' in locals() and cur:
                 cur.close()
@@ -194,7 +194,7 @@ class DataBase:
 
 
 # =====================================================================
-# ТОЧКА ВХОДА И ЗАПУСК ВСЕХ СЕРВИСОВ
+# ТОЧКА ВХОДУ ТА ЗАПУСК ВСІХ СЕРВІСІВ
 # =====================================================================
 if __name__ == "__main__":
     try:
@@ -202,35 +202,35 @@ if __name__ == "__main__":
     except NameError:
         pass
         
-    # Инициализация базовых файлов конфигурации
+    # Ініціалізація файлів конфігурації
     if not os.path.exists('config.json'):
         with open('config.json', 'w') as f:
             json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
 
-    # Проверяем и создаем таблицы в MySQL
+    # Перевірка MySQL перед стартом лобі
     print("[ИНФО] Проверка подключения к MySQL...")
     db_init = DataBase()
     db_init.createAccount()
 
-    # Сброс локальных конфигурационных логов при старте сервера
+    # Очищення стартових логів
     print("[ИНФО] Заблокированные IP очищены в config.json при запуске сервера")
     print("[ИНФО] Файл ConnectedIP.json очищен при запуске сервера.")
 
-    # ЗАПУСК ИСПРАВЛЕННОГО ТУННЕЛЯ NGROK
+    # ЗАПУСК ТУННЕЛЮ NGROK
     try:
         from pyngrok import ngrok, conf, installer
         
         pyngrok_config = conf.get_default()
         
-        # Скачиваем бинарный файл правильным методом для новых версий библиотеки pyngrok
+        # Скачуємо бінарник ngrok сумісним для нових версій методом
         if not os.path.exists(pyngrok_config.ngrok_path):
             print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
             installer.install_ngrok(pyngrok_config.ngrok_path)
             
-        # Твой личный токен Ngrok успешно установлен сюда:
+        # Твій токен успішно додано сюди:
         ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
         
-        # Открываем чистый TCP туннель для трафика Brawl Stars (порт 9339)
+        # Відкриваємо TCP тунель для Brawl Stars (порт 9339)
         tunnel = ngrok.connect(9339, "tcp")
         
         print("\n" + "="*60)
@@ -241,11 +241,11 @@ if __name__ == "__main__":
     except Exception as ngrok_error:
         print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
             
-    # Запуск основного игрового сервера
+    # Запуск основного ігрового сервера
     try:
         from Server.Server import Server
-        print("[ИНФО] Лобби запущено! Ожидаю подключения на порту 0.0.0.0:9339")
+        print("[ИНФО] Лобби запущено! 0.0.0.0:9339")
         server = Server("0.0.0.0", 9339)
         server.start()
     except ImportError:
-        print("[ВНИМАНИЕ] Не удалось импортировать класс Server. Убедись, что папка Server лежит в корне проекта.")
+        print("[ВНИМАНИЕ] Не вдалося імпортувати класс Server. Перевірь струкруту папок.")
