@@ -8,12 +8,11 @@ from mysql.connector import Error
 import requests
 
 # Импорты внутренней логики твоего сервера
-# (Убедись, что пути к папкам Logic и Utils верны относительно этого файла)
 try:
     from Logic.Player import Players
     from Utils.Helpers import Helpers
 except ImportError:
-    # Если запуск происходит из папки Logic, заглушаем ошибку путей
+    # Если запуск происходит из другой директории, заглушаем ошибку путей
     pass
 
 class DataBase:
@@ -213,7 +212,7 @@ if __name__ == "__main__":
     db_init = DataBase()
     db_init.createAccount()
 
-    # Сброс логов при старте сервера
+    # Сброс локальных конфигурационных логов при старте сервера
     print("[ИНФО] Заблокированные IP очищены в config.json при запуске сервера")
     print("[ИНФО] Файл ConnectedIP.json очищен при запуске сервера.")
 
@@ -223,13 +222,13 @@ if __name__ == "__main__":
         
         pyngrok_config = conf.get_default()
         
-        # Скачиваем бинарный файл правильным для современных версий pyngrok методом
+        # Скачиваем бинарный файл правильным методом для новых версий библиотеки pyngrok
         if not os.path.exists(pyngrok_config.ngrok_path):
             print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
             installer.install_ngrok(pyngrok_config.ngrok_path)
             
-        # !!! ВСТАВЬ СВОЙ АУТЕНТИФИКАЦИОННЫЙ ТОКЕН NGROK В СТРОКУ НИЖЕ !!!
-        ngrok.set_auth_token("ТВОЙ_РЕАЛЬНЫЙ_ТОКЕН_NGROK")
+        # Твой личный токен Ngrok успешно установлен сюда:
+        ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
         
         # Открываем чистый TCP туннель для трафика Brawl Stars (порт 9339)
         tunnel = ngrok.connect(9339, "tcp")
@@ -242,10 +241,10 @@ if __name__ == "__main__":
     except Exception as ngrok_error:
         print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
             
-    # Запуск основного сервера
+    # Запуск основного игрового сервера
     try:
         from Server.Server import Server
-        print("[ИНФО] Лобби запущено! 0.0.0.0:9339")
+        print("[ИНФО] Лобби запущено! Ожидаю подключения на порту 0.0.0.0:9339")
         server = Server("0.0.0.0", 9339)
         server.start()
     except ImportError:
