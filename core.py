@@ -13,24 +13,24 @@ from types import ModuleType
 logging.basicConfig(level=logging.INFO)
 
 # =====================================================================
-# АБСОЛЮТНЫЙ БЛОКАТОР: КОРРЕКТНОЕ ГЛУШЕНИЕ TELEBOT И MYSQL (С МЕТОДОМ CLOSE)
+# СВЕРХМОЩНЫЙ ПЕРЕХВАТЧИК ЯДРА: ПОЛНАЯ ИЗОЛЯЦИЯ TELEBOT И MYSQL
 # =====================================================================
 
-class DeepMock(ModuleType):
-    """Фейк-объект, имитирующий модули, функции и любые вложенные свойства"""
+class UltimateMock(ModuleType):
+    """Объект-хамелеон, возвращающий рабочие пустышки на любые запросы кодов"""
     def __init__(self, name):
         super().__init__(name)
     def __getattr__(self, item):
-        # 1. Если просят бота
+        # 1. Если код сервера запрашивает класс Телеграм-бота (TeleBot, Bot)
         if item in ('TeleBot', 'Bot'):
             class DummyBot:
                 def __init__(self, *args, **kwargs): pass
                 def __getattr__(self, name): return lambda *args, **kwargs: None
-                def infinity_polling(self, *args, **kwargs): time.sleep(36000)
-                def polling(self, *args, **kwargs): time.sleep(36000)
+                def infinity_polling(self, *args, **kwargs): time.sleep(360000)
+                def polling(self, *args, **kwargs): time.sleep(360000)
             return DummyBot
         
-        # 2. Если вызывают mysql.connector.connect()
+        # 2. Если код вызывает подключение к MySQL (connect)
         if item == 'connect':
             class DummyCursor:
                 def execute(self, *args, **kwargs): return None
@@ -40,38 +40,40 @@ class DeepMock(ModuleType):
             class DummyConn:
                 def cursor(self, *args, **kwargs): return DummyCursor()
                 def commit(self, *args, **kwargs): pass
-                def close(self, *args, **kwargs): return None  # ЗАЩИТА ОТ КРАША НА СТРОКЕ 550!
+                def close(self, *args, **kwargs): return None  # Метод close() теперь всегда существует!
                 def is_connected(self): return True
             return lambda *args, **kwargs: DummyConn()
             
-        return DeepMock(f"{self.__name__}.{item}")
+        return UltimateMock(f"{self.__name__}.{item}")
+        
     def __call__(self, *args, **kwargs):
-        # Специальный фикс: если сам коннект вызывают напрямую как функцию, 
-        # возвращаем объект, у которого ЕСТЬ метод close(), чтобы botuser.py не падал
-        class FallbackConn:
-            def cursor(self, *args, **kwargs):
-                class FallbackCursor:
-                    def execute(self, *args, **kwargs): return None
-                    def fetchall(self, *args, **kwargs): return []
-                    def fetchone(self, *args, **kwargs): return None
-                    def close(self, *args, **kwargs): return None
-                return FallbackCursor()
-            def commit(self, *args, **kwargs): pass
-            def close(self, *args, **kwargs): return None
-            def is_connected(self): return True
-        return FallbackConn()
+        # Если фейк-объект вызвали как функцию напрямую
+        return UltimateMock("dummy_callable")
 
-# Заменяем все возможные вариации библиотек в оперативной памяти Python
-sys.modules['telebot'] = DeepMock('telebot')
-sys.modules['telebot.util'] = DeepMock('telebot.util')
-sys.modules['telebot.apihelper'] = DeepMock('telebot.apihelper')
-sys.modules['mysql'] = DeepMock('mysql')
-sys.modules['mysql.connector'] = DeepMock('mysql.connector')
+class AbsoluteModuleBlocker:
+    """Глобальный фильтр импорта Python (встраивается в sys.meta_path)"""
+    def find_spec(self, fullname, path, target=None):
+        # Перехватываем telebot, mysql и абсолютно любые подмодули (apihelper, util, connector)
+        if fullname.startswith("telebot") or fullname.startswith("mysql"):
+            from importlib.machinery import ModuleSpec
+            print(f"[ПЕРЕХВАТ ИМПОРТА] Модуль {fullname} успешно изолирован.")
+            return ModuleSpec(fullname, None, origin="ultimate_core_mock")
+        return None
+    def create_module(self, spec):
+        return UltimateMock(spec.name)
+    def exec_module(self, module):
+        pass
 
-for log_name in ['TeleBot', 'telebot', 'urllib3', 'mysql']:
-    logging.getLogger(log_name).setLevel(logging.CRITICAL)
+# Встраиваем наш фильтр на ПЕРВОЕ место в систему Python
+sys.meta_path.insert(0, AbsoluteModuleBlocker())
 
-print("[СИСТЕМА] Защита ядра активна. Конфликты с ботом и MySQL полностью нейтрализованы.")
+# Дополнительно вычищаем кэш, если что-то успело подгрузиться
+for key in list(sys.modules.keys()):
+    if key.startswith("telebot") or key.startswith("mysql"):
+        sys.modules[key] = UltimateMock(key)
+
+print("[СИСТЕМА] Защита ядра запущена. Конфликты бота и базы данных ликвидированы.")
+
 
 # =====================================================================
 # АВТОЗАПУСК ТУННЕЛЯ PLAYIT.GG (ПОЛУЧЕНИЕ IP И ПОРТА)
@@ -91,7 +93,7 @@ def start_playit_tunnel():
             os.chmod(playit_path, os.stat(playit_path).st_mode | 0o111)
             print("[PLAYIT] Агент готов!")
         except Exception as e:
-            print(f"[ОШИБКА PLAYIT]: {e}")
+            print(f"[ОШИБКА PLAYIT]: Не удалось запустить туннель: {e}")
             return
 
     def run_agent():
@@ -131,8 +133,9 @@ if __name__ == "__main__":
     if current_dir not in sys.path:
         sys.path.append(current_dir)
 
-    print("[ИНФО] Загрузка твоего оригинального Server.py...")
+    print("[ИНФО] Загрузка оригинального Server.py...")
     try:
+        # Импортируем твой Server.py. Теперь все его внутренние импорты пройдут через наш фильтр
         import Server as OriginalServerModule
         
         print("[ИНФО] Запуск лобби Brawl Stars на порту 9339...")
