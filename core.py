@@ -13,7 +13,6 @@ from Utils.Helpers import Helpers
 from shared import connected_ips
 import mysql.connector
 from mysql.connector import Error
-from pyngrok import ngrok
 
 connection_timestamps = defaultdict(list)
 connection_lock = Lock()
@@ -262,8 +261,8 @@ class Server:
     def monitor_load(self):
         while True:
             time.sleep(3600)
-            log_info(f"Мониторинг нагрузки: {Server.ThreadCount} active clients, "
-                     f"received {self.total_received_bytes // 1024} KB, sent {self.total_sent_bytes // 1024} KB")
+            log_info(f"Мониторинг нагрузки: {Server.ThreadCount} активных клиентов, "
+                     f"принято {self.total_received_bytes // 1024} КБ, отправлено {self.total_sent_bytes // 1024} КБ")
 
     def start(self):
         while True:
@@ -405,17 +404,27 @@ if __name__ == "__main__":
         with open('config.json', 'w') as f:
             json.dump({"block": []}, f, indent=4)
             
-    # ЗАПУСК ТУННЕЛЯ NGROK ПЕРЕД СТАРТОМ СОКЕТОВ
+    # ЗАПУСК ТУННЕЛЯ NGROK С ПРИНУДИТЕЛЬНОЙ УСТАНОВКОЙ БИНАРНИКА
     try:
-        # ВСТАВЬ СВОЙ ТОКЕН В КАВЫЧКИ НИЖЕ (вместо ТВОЙ_ТОКЕН)
+        from pyngrok import ngrok, conf
+        
+        # Автоматически настраиваем правильный путь и скачиваем бинарник ngrok для хостинга Linux
+        pyngrok_config = conf.get_default()
+        if not os.path.exists(pyngrok_config.ngrok_path):
+            print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
+            conf.get_default().get_ngrok_bin()
+            
+        # ВСТАВЬ СВОЙ СЕКРЕТНЫЙ ТОКЕН В КАВЫЧКИ НИЖЕ СЮДА:
         ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
+        
+        # Создаем TCP туннель для Brawl Stars портом 9339
         tunnel = ngrok.connect(9339, "tcp")
         print("\n" + "="*50)
-        print("=== ТУННЕЛЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
+        print("=== ТУННЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
         print(f"АДРЕС ДЛЯ КЛИЕНТА APK: {tunnel.public_url}")
         print("="*50 + "\n")
     except Exception as ngrok_error:
         print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
             
     server = Server("0.0.0.0", 9339)
-    server.start()   
+    server.start()
