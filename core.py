@@ -6,6 +6,8 @@ import time
 import threading
 import requests
 import logging
+import subprocess
+import stat
 
 # Настройка логирования для панели Railway
 logging.basicConfig(level=logging.INFO)
@@ -32,33 +34,78 @@ except ImportError:
         def load_logic():
             pass
 
-# Оставляем заглушку класса DataBase, чтобы другие файлы (например, botuser.py), 
-# если они вызывают его методы, НЕ ЛОМАЛИ сервер.
+# Заглушка класса DataBase для совместимости с другими файлами сборки
 class DataBase:
     @staticmethod
-    def get_connection():
-        return None
-
+    def get_connection(): return None
     @staticmethod
-    def reset_brawlpass_for_all_players():
-        print("[ИНФО] Сброс Brawl Pass (функция отключена, так как MySQL не используется)")
-        return
-
+    def reset_brawlpass_for_all_players(): return
     @staticmethod
-    def check_brawlpass_reset():
-        return False
-
+    def check_brawlpass_reset(): return False
     @staticmethod
-    def createAccount(self):
-        return
+    def createAccount(self): return
 
 def distribute_rewards():
-    print("[ИНФО] Поток наград активен (работа в режиме файлового сохранения)...")
-    # Здесь сервер работает через встроенную логику файлов, без MySQL
+    print("[ИНФО] Фоновый поток наград активен (Файловый режим)...")
+
+# Функция автоматической загрузки и запуска туннеля Playit.gg
+def start_playit_tunnel():
+    print("[PLAYIT] Подготовка агента Playit.gg...")
+    playit_path = os.path.join(current_dir, "playit")
+    
+    # Скачиваем официальный Linux-бинарник playit, если его еще нет
+    if not os.path.exists(playit_path):
+        try:
+            url = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-linux-amd64"
+            print(f"[PLAYIT] Скачивание агента из {url}...")
+            r = requests.get(url, stream=True)
+            with open(playit_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            # Даем файлу права на выполнение в Linux (Railway)
+            st = os.stat(playit_path)
+            os.chmod(playit_path, st.st_mode | stat.S_IEXEC)
+            print("[PLAYIT] Агент успешно скачан и настроен!")
+        except Exception as e:
+            print(f"[КРИТИЧЕСКАЯ ОШИБКА PLAYIT]: Не удалось скачать агент: {e}")
+            return
+
+    # Запуск агента в фоновом потоке
+    def run_agent():
+        try:
+            print("[PLAYIT] Запуск туннеля...")
+            # Запускаем в режиме конфигурации (он сам создаст secret-ключ)
+            process = subprocess.Popen(
+                [playit_path, "--secret_path", os.path.join(current_dir, "playit-secret.json")],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            
+            # Читаем консоль playit, чтобы выдать тебе ссылку для привязки!
+            for line in process.stdout:
+                line_str = line.strip()
+                if "https://playit.gg/claim/" in line_str:
+                    print("\n" + "!"*60)
+                    print("   === ВНИМАНИЕ! КЛЮЧ ДЛЯ АКТИВАЦИИ ТУННЕЛЯ ===")
+                    print(f"   ПЕРЕЙДИ ПО ССЫЛКЕ ЧТОБЫ ЗАПУСТИТЬ СЕРВЕР:")
+                    print(f"   {line_str}")
+                    print("!"*60 + "\n")
+                else:
+                    # Выводим стандартные логи playit, чтобы видеть статус
+                    if "tunnel running" in line_str.lower() or "connected" in line_str.lower():
+                        print(f"[PLAYIT LOG] {line_str}")
+        except Exception as e:
+            print(f"[ERROR PLAYIT]: Ошибка во время работы процесса: {e}")
+
+    thread = threading.Thread(target=run_agent, name="PlayitAgent")
+    thread.daemon = True
+    thread.start()
 
 
 # =====================================================================
-# ТОЧКА ВХОДУ И ЗАПУСК ИГРЫ
+# ТОЧКА ВХОДА И ЗАПУСК СЕРВЕРА БРАВЛ СТАРС
 # =====================================================================
 if __name__ == "__main__":
     try:
@@ -66,42 +113,22 @@ if __name__ == "__main__":
     except Exception:
         pass
         
-    # Инициализация конфигурационных файлов
     if not os.path.exists('config.json'):
         with open('config.json', 'w') as f:
             json.dump({"block": [], "buybp": [], "buybpold": [], "BPSEASON": 1, "NEXTSEASON": "01.01.27 00:00"}, f, indent=4)
 
-    print("[ИНФО] Сервер запускается в автономном файловом режиме (сохранение в JSON)...")
-    print("[ИНФО] Заблокированные IP очищены в config.json при запуске сервера")
-    print("[ИНФО] Файл ConnectedIP.json очищен при запуске сервера.")
+    print("[ИНФО] Сервер запускается в автономном файловом режиме (JSON)...")
+    print("[ИНФО] Локальные файлы очищены.")
 
-    # Фоновые задачи сервера
+    # Запуск фонового распределения наград
     reward_thread = threading.Thread(target=distribute_rewards, name="distribute_rewards")
     reward_thread.daemon = True
     reward_thread.start()
 
-    # ЗАПУСК ТУННЕЛЯ NGROK (Твой токен)
-    try:
-        from pyngrok import ngrok, conf, installer
-        
-        pyngrok_config = conf.get_default()
-        if not os.path.exists(pyngrok_config.ngrok_path):
-            print("[NGROK] Скачивание и подготовка бинарного файла ngrok...")
-            installer.install_ngrok(pyngrok_config.ngrok_path)
+    # СТАРТ ТУННЕЛЯ PLAYIT
+    start_playit_tunnel()
             
-        # Твой личный токен
-        ngrok.set_auth_token("3EpDqWGtAXG13Lz8Ot1FGTDh6qL_2qo3rue38xZmfVDXKQyMg")
-        
-        tunnel = ngrok.connect(9339, "tcp")
-        print("\n" + "="*60)
-        print("   === ТУННЕЛИРОВАНИЕ ИГРЫ УСПЕШНО ВКЛЮЧЕНО! ===")
-        print(f"   АДРЕС ДЛЯ КЛИЕНТА APK: {tunnel.public_url}")
-        print("="*60 + "\n")
-        
-    except Exception as ngrok_error:
-        print(f"[КРИТИЧЕСКАЯ ОШИБКА NGROK]: {ngrok_error}")
-            
-    # Умный запуск игрового лобби Brawl Stars
+    # Запуск основного игрового лобби Brawl Stars
     server_imported = False
     try:
         from Server.Server import Server
@@ -118,9 +145,9 @@ if __name__ == "__main__":
                 pass
 
     if server_imported:
-        print("[ИНФО] Лобби успешно запущено! Ожидаю игроков на порту 0.0.0.0:9339")
+        print("[ИНФО] Лобби успешно запущено на порту 0.0.0.0:9339! Ожидаю туннель...")
         server = Server("0.0.0.0", 9339)
         server.start()
     else:
         print("[ВНИМАНИЕ] Не удалось импортировать класс Server!")
-        print(f"Список файлов в вашей папке: {os.listdir(current_dir)}")
+        print(f"Список файлов: {os.listdir(current_dir)}")
