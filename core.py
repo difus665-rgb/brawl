@@ -7,54 +7,70 @@ import requests
 import subprocess
 import threading
 import logging
+from types import ModuleType
 
-# Настройка базового логирования для Railway
+# Настройка логирования для Railway
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =====================================================================
-# ЗАКРЫВАЕМ ВОПРОС С БОТОМ И MYSQL НА УРОВНЕ СИСТЕМНОГО КЕША PYTHON
+# СВЕРХМОЩНЫЙ ИНЖЕКТОР: ПОЛНОЕ УНИЧТОЖЕНИЕ ТЕЛЕГРАМ-БОТА И MYSQL ИЗ СИСТЕМЫ
 # =====================================================================
 
-# 1. Создаем абсолютную пустышку-заглушку для Telegram бота
-class AbsoluteBotMock:
-    def __init__(self, *args, **kwargs): pass
-    def __getattr__(self, name): return lambda *args, **kwargs: None
-    def infinity_polling(self, *args, **kwargs):
-        print("[СИСТЕМА] Встроенный бот успешно переведен в режим сна."); time.sleep(360000)
-    def polling(self, *args, **kwargs):
-        print("[СИСТЕМА] Встроенный бот успешно переведен в режим сна."); time.sleep(360000)
+class DeepMock(ModuleType):
+    """Класс-заглушка, который притворяется любым модулем, подмодулем или функцией."""
+    def __init__(self, name):
+        super().__init__(name)
+    def __getattr__(self, item):
+        # Если запрашивают класс бота (TeleBot), отдаем класс-пустышку
+        if item in ('TeleBot', 'Bot'):
+            class DummyBot:
+                def __init__(self, *args, **kwargs): pass
+                def __getattr__(self, name): return lambda *args, **kwargs: None
+                def infinity_polling(self, *args, **kwargs):
+                    print("[СИСТЕМА] Поток встроенного Telegram-бота заглушен."); time.sleep(360000)
+                def polling(self, *args, **kwargs):
+                    print("[СИСТЕМА] Поток встроенного Telegram-бота заглушен."); time.sleep(360000)
+            return DummyBot
+        # Если запрашивают коннект к MySQL
+        if item == 'connect':
+            class DummyCursor:
+                def execute(self, *args, **kwargs): return None
+                def fetchall(self, *args, **kwargs): return []
+                def fetchone(self, *args, **kwargs): return None
+                def close(self, *args, **kwargs): return None
+            class DummyConn:
+                def cursor(self, *args, **kwargs): return DummyCursor()
+                def commit(self, *args, **kwargs): pass
+                def close(self, *args, **kwargs): pass
+                def is_connected(self): return True
+            return lambda *args, **kwargs: DummyConn()
+        
+        # Для любых других подмодулей возвращаем такой же бесконечный Mock
+        return DeepMock(f"{self.__name__}.{item}")
+    def __call__(self, *args, **kwargs):
+        return DeepMock("dummy_callable")
 
-# Принудительно заменяем модуль telebot во всей системе Python
-import types
-mock_telebot = types.ModuleType('telebot')
-mock_telebot.TeleBot = AbsoluteBotMock
-sys.modules['telebot'] = mock_telebot
-print("[УСПЕХ] Жесткая блокировка TeleBot активирована.")
+class AbsoluteImportBlocker:
+    """Перехватчик системы импорта Python (sys.meta_path)"""
+    def find_spec(self, fullname, path, target=None):
+        # Намертво перехватываем telebot, mysql и все их внутренности (например, telebot.util, mysql.connector)
+        if fullname.startswith("telebot") or fullname.startswith("mysql"):
+            from importlib.machinery import ModuleSpec
+            print(f"[ПЕРЕХВАТ ИМПОРТА] Модуль {fullname} успешно изолирован.")
+            return ModuleSpec(fullname, None, origin="mock_system")
+        return None
+    def create_module(self, spec):
+        return DeepMock(spec.name)
+    def exec_module(self, module):
+        pass
 
-# 2. Создаем абсолютную пустышку-заглушку для Базы Данных MySQL
-class MockCursor:
-    def execute(self, *args, **kwargs): return None
-    def fetchall(self, *args, **kwargs): return []
-    def fetchone(self, *args, **kwargs): return None
-    def close(self, *args, **kwargs): return None
+# Встраиваем перехватчик на первое место в систему Python
+sys.meta_path.insert(0, AbsoluteImportBlocker())
 
-class MockConnection:
-    def cursor(self, *args, **kwargs): return MockCursor()
-    def commit(self, *args, **kwargs): pass
-    def close(self, *args, **kwargs): pass
-    def is_connected(self): return True
-
-mock_mysql = types.ModuleType('mysql')
-mock_mysql_connector = types.ModuleType('mysql.connector')
-mock_mysql_connector.connect = lambda *args, **kwargs: MockConnection()
-sys.modules['mysql'] = mock_mysql
-sys.modules['mysql.connector'] = mock_mysql_connector
-print("[УСПЕХ] Жесткая блокировка MySQL БД активирована.")
-
-# Отключаем лишние системные логи
-for logger_name in ['TeleBot', 'telebot', 'urllib3', 'mysql']:
-    logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+# Дополнительно чистим логи, чтобы они не спамили
+for log_name in ['TeleBot', 'telebot', 'urllib3', 'mysql']:
+    logging.getLogger(log_name).setLevel(logging.CRITICAL)
 
 # Настройка рабочих папок сервера Brawl Stars
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -72,7 +88,7 @@ if not os.path.exists('config.json'):
 
 
 # =====================================================================
-# АВТОЗАПУСК ТУННЕЛЯ PLAYIT.GG (ПОЛУЧЕНИЕ IP И ПОРТА)
+# АВТОЗАПУСК ТУННЕЛЯ PLAYIT.GG (ВЫВОД ССЫЛКИ ДЛЯ IP И ПОРТА)
 # =====================================================================
 def start_playit_tunnel():
     print("[PLAYIT] Подготовка агента Playit.gg...")
@@ -87,10 +103,10 @@ def start_playit_tunnel():
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk: f.write(chunk)
             st = os.stat(playit_path)
-            os.chmod(playit_path, st.st_mode | stat.S_IEXEC)
+            os.chmod(playit_path, stat.S_IEXEC | st.st_mode)
             print("[PLAYIT] Агент успешно скачан!")
         except Exception as e:
-            print(f"[ОШИБКА PLAYIT]: {e}")
+            print(f"[ОШИБКА PLAYIT]: Не удалось скачать агент: {e}")
             return
 
     def run_agent():
